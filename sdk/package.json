@@ -1,0 +1,66 @@
+{
+  "name": "@haven-protocol/ckb-sdk",
+  "version": "0.1.0",
+  "description": "Haven Protocol SDK for CKB — read and verify Haven Scores directly from the chain via CCC",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
+    },
+    "./tee": {
+      "types": "./dist/tee/index.d.ts",
+      "default": "./dist/tee/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts/index.d.ts",
+      "default": "./dist/contracts/index.js"
+    },
+    "./attestations": {
+      "types": "./dist/attestation.d.ts",
+      "default": "./dist/attestation.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@ckb-ccc/core": "^1.12.5"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "ckb",
+    "nervos",
+    "haven",
+    "reputation",
+    "privacy",
+    "sdk",
+    "ccc"
+  ]
+}

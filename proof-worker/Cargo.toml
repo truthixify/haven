@@ -1,0 +1,45 @@
+[package]
+name = "proof-worker"
+version = "0.1.0"
+edition = "2021"
+description = "Haven Protocol SP1 proof worker — generates DCAP attestation proofs using Automata's SP1 zkVM verifier"
+license = "MIT"
+
+[[bin]]
+name = "proof-worker"
+path = "src/main.rs"
+
+[dependencies]
+# HTTP framework
+axum = { version = "0.7", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# DCAP attestation proof generation via Automata's SP1 verifier
+automata-dcap-zkvm = { git = "https://github.com/automata-network/automata-dcap-attestation", tag = "v1.1.1-alpha-3", default-features = false, features = ["sp1"] }
+automata-dcap-utils = { git = "https://github.com/automata-network/automata-dcap-attestation", tag = "v1.1.1-alpha-3" }
+
+# Ethereum provider for fetching DCAP collaterals from on-chain PCCS
+alloy = { version = "1.4", features = ["full"] }
+
+# Hashing — CKB-ecosystem blake2b
+blake2b-rs = "0.2"
+
+# Encoding
+hex = "0.4"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CORS middleware
+tower-http = { version = "0.5", features = ["cors"] }
+
+# Error handling
+anyhow = "1.0"
+
+# Environment
+dotenvy = "0.15"

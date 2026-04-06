@@ -1,0 +1,11 @@
+[package]
+name = "haven-types"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Shared types for Haven Protocol CKB smart contracts"
+
+[features]
+default = []
+
+[dependencies]

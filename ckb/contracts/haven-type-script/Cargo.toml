@@ -1,0 +1,15 @@
+[package]
+name = "haven-type-script"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Haven Protocol type script: validates SP1 proofs on score cell updates"
+
+[dependencies]
+haven-types = { workspace = true }
+ckb-std = "1.1"
+sp1-verifier = { git = "https://github.com/XuJiandong/sp1.git", default-features = false, rev = "0cc2b42" }
+
+[features]
+library = []
+native-simulator = ["library", "ckb-std/native-simulator"]

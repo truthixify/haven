@@ -1,0 +1,15 @@
+[package]
+name = "haven-lock-script"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Haven Protocol lock script: dual-path TEE update + user ownership"
+
+[dependencies]
+haven-types = { workspace = true }
+ckb-std = { version = "1.1", default-features = true, features = ["dlopen-c"] }
+ckb-hash = { version = "1.1", default-features = false, features = ["ckb-contract"] }
+
+[features]
+library = []
+native-simulator = ["library", "ckb-std/native-simulator"]
