@@ -35,7 +35,7 @@ Schema is auto-synchronized via TypeORM (`synchronize: true`).
 
 ## Scoring
 
-- Runs on a configurable cron schedule (default: every 5 minutes, `SCORING_CRON=*/5 * * * *`)
+- Runs on a configurable cron schedule (default: every 24 hours in production, every 5 minutes for testing)
 - **Collectors:** Twitter, GitHub, on-chain CKB (supports any CKB lock script type)
 - **Formulas:** Privacy Hygiene, Contribution, Humanity, Community -- four component scores that sum to the total (0-1000)
 - Each cycle collects activity, computes scores, generates attestation, requests SP1 proof, and submits CKB transactions

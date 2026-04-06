@@ -240,7 +240,7 @@ HAVEN_REGISTRY_INDEX=0
 HAVEN_TYPE_SCRIPT_CODE_HASH=0x1193537cffa570e905d47ce971a166720e07773f188bce6a1dafd2740e892a37
 HAVEN_TYPE_SCRIPT_HASH_TYPE=type
 
-# Scoring Schedule (every 5 minutes)
+# Scoring Schedule (every 24 hours in production, every 5 minutes for testing)
 SCORING_CRON=*/5 * * * *
 
 # Server

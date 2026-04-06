@@ -77,9 +77,9 @@ Haven Protocol consists of five components with no traditional backend server:
 |-----------|------|-----------|
 | **Dashboard** | User interface for wallet connect, OAuth flows, score display, leaderboard, notifications, deposit management | No (reads CKB directly, polls TEE for notifications) |
 | **TEE Service** | Collects activity via APIs, runs scoring program, generates DCAP attestation, submits CKB transactions, manages notifications | Yes (PostgreSQL: users, connections, notifications) |
-| **Proof Worker** | Receives DCAP attestation, generates SP1 proof, returns proof to TEE | No (stateless) |
+| **Proof Worker** | Receives DCAP attestation, generates a ZK proof (SP1 PLONK) that verifies the TEE correctly executed the scoring computation for each user, returns proof to TEE | No (stateless) |
 | **SDK** | TypeScript library for reading/verifying scores from CKB. React hooks for frontend integration. TEE client for identity and notifications | No (pure on-chain reads + TEE API calls) |
-| **CKB Scripts** | Type script verifies SP1 proofs, enforces score update rules, allows proof-free top-ups. Lock script enforces dual-path access | N/A (on-chain) |
+| **CKB Scripts** | Type script verifies the SP1 ZK proof (which guarantees the score was computed correctly by the TEE), enforces score update rules, allows proof-free top-ups. Lock script enforces dual-path access | N/A (on-chain) |
 
 ---
 
@@ -257,7 +257,7 @@ User          Third-Party dApp        CKB
 
 Step-by-step detail of a single score update:
 
-1. **TEE Scoring Trigger:** The NestJS `@Cron` scheduler (`scoring.scheduler.ts`) fires every 5 minutes (configurable via `SCORING_CRON`, default `*/5 * * * *`). If a cycle is already running, the trigger is skipped.
+1. **TEE Scoring Trigger:** The NestJS `@Cron` scheduler (`scoring.scheduler.ts`) fires every 24 hours in production (every 5 minutes during testing, configurable via `SCORING_CRON`). If a cycle is already running, the trigger is skipped.
 
 2. **Epoch Initialization:** On first run after TEE restart, the epoch is initialized from the database by reading the maximum `lastScoredEpoch` across all users. The epoch then increments for each cycle.
 
@@ -274,9 +274,9 @@ Step-by-step detail of a single score update:
    - `humanity.ts` -- Sybil resistance signals, account age, cross-platform consistency. Max 200.
    - `community.ts` -- Platform participation. Max 100.
 
-6. **DCAP Attestation:** The attestation service (`attestation.service.ts`) generates a Phala DCAP attestation over the scoring output using `@phala/dstack-sdk`. This step is skipped if the proof worker is unavailable.
+6. **DCAP Attestation:** The attestation service (`attestation.service.ts`) generates a Phala DCAP attestation over the scoring output using `@phala/dstack-sdk`. The DCAP attestation cryptographically binds the scoring result to the TEE's execution environment, proving the computation ran inside a genuine Intel TDX enclave. This step is skipped if the proof worker is unavailable.
 
-7. **SP1 Proof Generation:** The proof worker client (`proof-worker.client.ts`) sends the DCAP attestation (hex-encoded TDX quote) to the proof worker's `/prove` endpoint. The proof worker uses Automata's `automata-dcap-zkvm` to generate an SP1 PLONK proof. This step is skipped if the proof worker is unavailable.
+7. **SP1 Proof Generation:** The proof worker client (`proof-worker.client.ts`) sends the DCAP attestation (hex-encoded TDX quote) to the proof worker's `/prove` endpoint. The proof worker uses Automata's `automata-dcap-zkvm` to generate an SP1 PLONK proof that verifies the TEE correctly executed the scoring computation -- that each component score (privacy, contribution, humanity, community) was computed honestly from real activity data and the final score was produced without tampering. This step is skipped if the proof worker is unavailable.
 
 8. **Transaction Construction:** The chain service (`chain.service.ts`) builds a CKB transaction using CCC:
    - Input: the user's current score cell
@@ -634,15 +634,19 @@ Haven's security model creates a trust chain from the TEE hardware through the S
 ```
 Phala TDX Hardware
     |
-    | DCAP attestation (proves genuine TEE execution)
+    | DCAP attestation (cryptographically binds the scoring result
+    | to a genuine TEE execution environment)
     v
 SP1 Proof Worker
     |
-    | SP1 PLONK proof (proves correct computation over valid attestation)
+    | SP1 PLONK proof (verifies the TEE executed the scoring
+    | computation correctly -- each component score computed
+    | honestly from real activity data, final score untampered)
     v
 CKB Type Script
     |
-    | On-chain verification (final authority -- rejects invalid proofs)
+    | On-chain verification (final authority -- if the proof is
+    | invalid, the score cell cannot be updated)
     v
 Score Cell Updated
 ```
@@ -651,9 +655,9 @@ Score Cell Updated
 
 | Layer | Guarantee |
 |-------|-----------|
-| **Phala TDX TEE** | Code executed in an isolated enclave. Account linkages stored in TEE-local PostgreSQL, inaccessible to external parties. DCAP attestation proves the enclave is genuine. |
-| **SP1 Proof** | The scoring program (identified by program hash H) was executed correctly inside a genuine TEE as proven by a valid DCAP attestation, producing the claimed score. |
-| **CKB Type Script** | The SP1 proof is valid, the program hash matches the Registry, the identity is unchanged, the epoch incremented, the fee was deducted correctly, the breakdown sums to the total, and the expiry is set correctly. |
+| **Phala TDX TEE** | Code executed in an isolated enclave. Account linkages stored in TEE-local PostgreSQL, inaccessible to external parties. DCAP attestation cryptographically proves the computation ran inside a genuine Intel TDX enclave and binds the scoring result to that environment. |
+| **SP1 Proof** | The ZK proof verifies that the TEE ran the correct scoring computation -- that the scoring program (identified by program hash H) was executed honestly, each component score (privacy, contribution, humanity, community) was computed correctly from the collected activity data, and the final score was produced without tampering. |
+| **CKB Type Script** | Checks the SP1 proof on-chain. If the proof is valid (meaning the scoring computation was done correctly), the type script allows the update after also verifying the program hash matches the Registry, the identity is unchanged, the epoch incremented, the fee was deducted correctly, the breakdown sums to the total, and the expiry is set correctly. If the proof is invalid, the score update is rejected. |
 | **CKB Lock Script** | The TEE can only update through the type-script-guarded path with a valid TEE signature. The user always retains ownership via their private key. |
 
 ### Program Hash Pinning

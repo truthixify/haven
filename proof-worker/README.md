@@ -1,8 +1,8 @@
 # Haven Proof Worker
 
-Stateless Rust HTTP service that generates DCAP attestation proofs using Automata's SP1 zkVM verifier. The Phala TEE sends a hex-encoded TDX attestation quote, and the proof worker returns an SP1 PLONK proof that can be verified on-chain in CKB.
+Stateless Rust HTTP service that generates a ZK proof (SP1 PLONK) verifying that the TEE correctly executed the scoring computation for each user. The Phala TEE sends a hex-encoded TDX attestation quote containing the scoring result, and the proof worker returns an SP1 PLONK proof that guarantees the TEE ran the scoring program honestly -- computing each component score (privacy, contribution, humanity, community) correctly from the collected activity data and producing the final score without tampering. This proof can be verified on-chain by CKB's type script.
 
-The proof worker has no database, no sessions, and no user data. It only proves that a valid TDX attestation was produced.
+The proof worker has no database, no sessions, and no user data. It verifies the DCAP attestation (which proves the computation ran in a genuine TEE) and produces a ZK proof of correct score computation.
 
 ## Tech Stack
 
@@ -19,7 +19,7 @@ The proof worker has no database, no sessions, and no user data. It only proves 
 4. Generates an SP1 proof (PLONK or Groth16) via SP1 Network remote proving
 5. Returns proof bytes, public values (journal), proof hash (Blake2b), program ID, and vk_hash
 
-The proof verifies the full TDX quote including signature chain, Intel certificate chain, TCB status, and collateral freshness.
+The proof verifies the full TDX quote including signature chain, Intel certificate chain, TCB status, and collateral freshness -- guaranteeing that the scoring computation ran inside a genuine TEE and was executed correctly.
 
 ## Endpoints
 

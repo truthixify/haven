@@ -16,7 +16,7 @@ When users connect their Twitter, GitHub, and wallets to Haven, those account li
 
 There is no traditional backend. The Phala TEE handles all computation, all proof requests, and all on-chain settlement. The proof worker is a separate SP1 prover service that the TEE calls to generate proofs and returns results to. The TEE then submits CKB transactions directly using CCC.
 
-| Core Design | Public score. Private identity. No backend. The TEE is the only system that knows who you are, and it proves it computed your score correctly without revealing anything about you. |
+| Core Design | Public score. Private identity. No backend. The TEE computes your score from real activity data, and an SP1 ZK proof verifies that the TEE executed the scoring computation correctly -- computing each component score (privacy, contribution, humanity, community) honestly and producing the final score without tampering. The CKB type script checks this proof before any score update is allowed. |
 | :---: | :---- |
 
 # **2. The Privacy Model**
@@ -84,9 +84,9 @@ The TEE is a NestJS service that runs inside a Phala dstack Intel TDX enclave. I
 
 * Reading activity data from connected accounts via their APIs
 
-* Running the Haven scoring program over the collected activity every 5 minutes (configurable via `SCORING_CRON`)
+* Running the Haven scoring program over the collected activity every 24 hours in production (every 5 minutes during testing, configurable via `SCORING_CRON`)
 
-* Generating a DCAP attestation proving the computation ran inside a genuine TEE
+* Generating a DCAP attestation that cryptographically proves the scoring computation ran inside a genuine Intel TDX enclave, binding the scoring result to the TEE's execution environment
 
 * Calling the SP1 proof worker with the attestation and requesting a proof
 
@@ -260,7 +260,7 @@ Two CKB scripts deployed on testnet with type-id (upgradable):
 
 ## **5.2 Score Update Cycle (Automatic, Every 5 Minutes)**
 
-8. Scoring interval triggers inside the Phala TEE (configurable via `SCORING_CRON`, default `*/5 * * * *`).
+8. Scoring interval triggers inside the Phala TEE (configurable via `SCORING_CRON`, default `0 0 * * *` for production, `*/5 * * * *` for testing).
 
 9. TEE reads the PostgreSQL database to retrieve user records and their connection tokens.
 
@@ -272,13 +272,13 @@ Two CKB scripts deployed on testnet with type-id (upgradable):
 
 13. TEE calls the SP1 proof worker with the DCAP attestation (if available).
 
-14. SP1 proof worker generates proof of correct TEE execution and returns it to the TEE (if available).
+14. SP1 proof worker generates a ZK proof that verifies the TEE correctly executed the scoring computation -- that each component score was computed honestly from the collected activity data, producing the final score without tampering -- and returns the proof to the TEE (if available).
 
 15. TEE constructs a CKB transaction using CCC: input is the current score cell, output is the new score cell with updated score (if proof is available and score cell outpoint exists).
 
 16. TEE signs and submits the transaction to CKB.
 
-17. CKB type script verifies the SP1 proof. If valid, old score cell is consumed and new score cell is created.
+17. CKB type script verifies the SP1 proof, which guarantees the score was computed correctly by the TEE. If the proof is valid, the old score cell is consumed and the new score cell is created. If the proof is invalid (meaning the computation was tampered with), the transaction is rejected.
 
 18. Update fee is deducted from deposit_balance in the new score cell.
 
@@ -344,7 +344,7 @@ The proof worker uses Automata's `automata-dcap-zkvm` library (v1.1.1-alpha-3) w
 
 ## **6.4 What the SP1 Proof Attests**
 
-| SP1 Proof Statement | The Haven scoring program, identified by program hash H, was executed correctly inside a genuine Phala TDX enclave as proven by a valid DCAP attestation, over activity inputs for user identity commitment I collected during epoch N, and produced a new score S. |
+| SP1 Proof Statement | The ZK proof (SP1 PLONK) verifies that the TEE ran the correct scoring computation for user identity commitment I during epoch N -- that it executed the scoring program (identified by program hash H) honestly inside a genuine Phala TDX enclave, computed each component score (privacy, contribution, humanity, community) correctly from the collected activity data, and produced the final score S without tampering. The DCAP attestation embedded in the proof confirms the computation ran in a genuine TEE. |
 | :---: | :---- |
 
 Public inputs verified by the CKB type script:
@@ -758,7 +758,7 @@ Haven Protocol does not launch a new chain token. Incentives use CKBytes and Hav
 
 ## **20.1 SP1 as Trust Anchor**
 
-The system does not require trusting the Phala TEE hardware blindly. SP1 proves correct execution inside the TEE. An incorrect computation or tampered attestation produces an invalid SP1 proof, which the CKB type script rejects. The math is the trust.
+The system does not require trusting the Phala TEE hardware blindly. The SP1 ZK proof verifies that the TEE actually executed the scoring program correctly -- that it computed each component score (privacy, contribution, humanity, community) honestly from real activity data and produced the final score without tampering. If the computation was altered or the attestation was forged, the SP1 proof is invalid, and the CKB type script rejects the score update. The cryptographic proof, not the hardware alone, is the trust anchor.
 
 ## **20.2 TEE-Local PostgreSQL Storage**
 
@@ -788,7 +788,7 @@ The type script's `is_topup_only` check ensures that user top-up transactions ca
 
 Haven Protocol on CKB is a privacy reputation system with a clean and honest architecture. The Haven Score is fully public -- on the leaderboard, readable by dApps, verifiable by anyone. The identity behind the score is fully private -- known only inside the Phala TEE, stored in a local PostgreSQL database that the TEE hardware protects.
 
-There is no traditional backend. The Phala TEE collects activity, runs scoring every 5 minutes, requests SP1 proofs, and submits CKB transactions directly. The SP1 proof worker is stateless. The CKB type script is the final authority. If the proof does not verify, the score does not update.
+There is no traditional backend. The Phala TEE collects activity, runs scoring every 24 hours (every 5 minutes during testing), requests SP1 proofs, and submits CKB transactions directly. The SP1 proof worker is stateless. The CKB type script is the final authority. If the proof does not verify, the score does not update.
 
 Users connect their accounts once. Everything else is automatic. Scores update on a configurable schedule. Fees come from their pre-deposited CKBytes. They own their score cell and can always reclaim their CKBytes with their private key. The notification system keeps users informed of score changes, tier changes, and low balances.
 

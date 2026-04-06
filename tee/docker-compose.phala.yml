@@ -1,0 +1,76 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: haven-tee-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-haven}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-haven_tee_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-haven}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    command: postgres -c listen_addresses='*'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-haven} -d ${POSTGRES_DB:-haven}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  tee-app:
+    image: truthixify/haven-tee:latest
+    container_name: haven-tee
+    environment:
+      # Database (connects to the db service above)
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB:-haven}
+      DATABASE_USER: ${POSTGRES_USER:-haven}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-haven_tee_secret}
+
+      # dstack (auto-available in Phala CVM)
+      DSTACK_ENDPOINT: ""
+
+      # CKB Network
+      CKB_NETWORK: ${CKB_NETWORK:-testnet}
+      CKB_RPC_URL: ${CKB_RPC_URL:-https://testnet.ckb.dev/rpc}
+      CKB_INDEXER_URL: ${CKB_INDEXER_URL:-https://testnet.ckb.dev/indexer}
+      TEE_SIGNING_KEY: ${TEE_SIGNING_KEY}
+
+      # Proof Worker (deployed separately on a server)
+      PROOF_WORKER_URL: ${PROOF_WORKER_URL}
+
+      # Haven CKB Scripts
+      HAVEN_REGISTRY_TX_HASH: ${HAVEN_REGISTRY_TX_HASH}
+      HAVEN_REGISTRY_INDEX: ${HAVEN_REGISTRY_INDEX:-0}
+      HAVEN_TYPE_SCRIPT_CODE_HASH: ${HAVEN_TYPE_SCRIPT_CODE_HASH}
+      HAVEN_TYPE_SCRIPT_HASH_TYPE: ${HAVEN_TYPE_SCRIPT_HASH_TYPE:-type}
+
+      # OAuth (optional)
+      TWITTER_CLIENT_ID: ${TWITTER_CLIENT_ID:-}
+      TWITTER_CLIENT_SECRET: ${TWITTER_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+
+      # Scoring
+      SCORING_CRON: ${SCORING_CRON:-0 0 * * *}
+
+      # Server
+      PORT: 3000
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  postgres_data:

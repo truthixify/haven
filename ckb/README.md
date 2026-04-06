@@ -17,10 +17,10 @@ ckb/
 
 ## Type Script (`haven-type-script`)
 
-Validates all operations on Haven Score cells:
+Validates all operations on Haven Score cells. On score updates, the type script verifies the SP1 ZK proof, which guarantees that the TEE correctly executed the scoring computation -- computing each component score (privacy, contribution, humanity, community) honestly from real activity data and producing the final score without tampering. If the proof is invalid, the score cell cannot be updated.
 
 - **Creation:** score must be 0, deposit >= minimum from registry, identity commitment set
-- **Update (score change):** verifies SP1 PLONK proof against public inputs, checks program hash matches registry (current or previous during grace period), validates epoch increment, fee deduction, breakdown sums to total score
+- **Update (score change):** verifies the SP1 PLONK proof (which proves correct score computation by the TEE) against public inputs, checks program hash matches registry (current or previous during grace period), validates epoch increment, fee deduction, breakdown sums to total score
 - **Top-up:** deposit_balance increase only, all other fields unchanged
 - **Destruction:** cell consumed (no output with same type script)
 
@@ -30,7 +30,7 @@ SP1 proof verification uses [XuJiandong's optimized PLONK verifier fork](https:/
 
 Dual-path authorization:
 
-- **Path 0 (TEE Update):** secp256k1 signature from the TEE key (verified against tee_pubkey_hash in lock args) + type script must be present on the output cell. The type script handles proof verification.
+- **Path 0 (TEE Update):** secp256k1 signature from the TEE key (verified against tee_pubkey_hash in lock args) + type script must be present on the output cell. The type script then verifies the SP1 ZK proof, which guarantees the score was computed correctly by the TEE.
 - **Path 1 (User Direct):** secp256k1 signature from the user's key (verified against user_pubkey_hash in lock args). Used for deposit top-ups and cell reclaim.
 
 Lock args layout: `user_pubkey_hash (20 bytes) || tee_pubkey_hash (20 bytes)` = 40 bytes total.

@@ -10,7 +10,7 @@ Haven Protocol is a privacy reputation and incentivized discovery layer built na
 
 When users connect their accounts to Haven, those linkages are stored exclusively inside a Phala Network TEE (Trusted Execution Environment) in a PostgreSQL database running locally within the TEE container. Nobody outside the TEE -- not Haven contributors, not any database, not on-chain observers -- can ever know which Twitter account, GitHub profile, or set of wallets belongs to a given Haven Score. The TEE hardware protects the environment, and the data never leaves.
 
-There is no traditional backend. The Phala TEE handles all computation, proof requests, and on-chain settlement. The SP1 proof worker is a separate stateless service that generates DCAP attestation proofs. The CKB type script is the final authority -- if the proof does not verify, the score does not update.
+There is no traditional backend. The Phala TEE handles all computation, proof requests, and on-chain settlement. The SP1 proof worker generates a ZK proof (SP1 PLONK) that verifies the TEE correctly executed the scoring computation -- that it computed each component score (privacy, contribution, humanity, community) honestly from real activity data and produced the final score without tampering. The CKB type script checks this proof on-chain before allowing any score update. If the proof is invalid, the score does not change.
 
 ## Architecture
 
@@ -33,7 +33,7 @@ There is no traditional backend. The Phala TEE handles all computation, proof re
                      |                    +------+------+
               Read score cells                   |
               directly from CKB           1. Collect activity
-                     |                    2. Run scoring (every 5 min)
+                     |                    2. Run scoring (every 24h (5min for testing))
                      |                    3. Request DCAP proof
                      |                    4. Create notifications
                      |                           |
@@ -53,7 +53,7 @@ There is no traditional backend. The Phala TEE handles all computation, proof re
                                           +-------------+
 ```
 
-**Data flow:** User connects wallet and accounts via Dashboard. OAuth tokens go directly to the Phala TEE. The TEE stores them in a local PostgreSQL database, collects activity, computes scores, sends DCAP attestation to the Proof Worker for SP1 proof generation, then constructs and submits CKB transactions. dApps read score cells directly from CKB via the SDK -- no Haven server involved. The TEE creates notifications on score changes, tier changes, and low deposit balance.
+**Data flow:** User connects wallet and accounts via Dashboard. OAuth tokens go directly to the Phala TEE. The TEE stores them in a local PostgreSQL database, collects activity, computes scores, and sends DCAP attestation to the Proof Worker. The Proof Worker generates a ZK proof (SP1 PLONK) that verifies the TEE correctly executed the scoring computation for each user. The TEE then constructs and submits CKB transactions with this proof. The on-chain type script checks the proof before allowing the score cell to update. dApps read score cells directly from CKB via the SDK -- no Haven server involved. The TEE creates notifications on score changes, tier changes, and low deposit balance.
 
 ## Components
 
@@ -249,7 +249,7 @@ The Haven type script includes an `is_topup_only` check. When the only change to
 
 ### TEE Attestation
 
-All account linkages and scoring happen inside the Phala TEE. A DCAP attestation proves the computation ran in a genuine TEE. The SP1 proof worker then generates a proof over this attestation, which the CKB type script verifies on-chain.
+All account linkages and scoring happen inside the Phala TEE. A DCAP attestation cryptographically proves the scoring computation ran inside a genuine Intel TDX enclave, binding the scoring result to the TEE's execution environment. The SP1 proof worker then generates a ZK proof that verifies the TEE executed the scoring program correctly -- computing each component score honestly from the collected activity data and producing the final score without tampering. The CKB type script checks this proof on-chain before allowing any score update.
 
 ### Notifications
 
@@ -286,7 +286,7 @@ The TEE creates notifications on score changes, tier changes, and low deposit ba
 | `HAVEN_REGISTRY_INDEX` | Yes | Output index of the Registry cell | `0` |
 | `HAVEN_TYPE_SCRIPT_CODE_HASH` | Yes | Deployed type script code hash (hex) | -- |
 | `HAVEN_TYPE_SCRIPT_HASH_TYPE` | Yes | Type script hash type | `type` |
-| `SCORING_CRON` | No | Cron expression for scoring cycle | `*/5 * * * *` |
+| `SCORING_CRON` | No | Cron expression for scoring cycle | `0 0 * * *` (production) or `*/5 * * * *` (testing) |
 | `PORT` | No | HTTP server port | `3000` |
 
 ### Proof Worker (`proof-worker/.env`)

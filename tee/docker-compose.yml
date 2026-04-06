@@ -1,7 +1,12 @@
-version: '3.8'
+# Haven Protocol - Local Development
+#
+# Start Postgres:  docker-compose up -d postgres
+# Start everything: docker-compose up -d
+
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: haven-postgres
     environment:
       POSTGRES_DB: haven
       POSTGRES_USER: haven
@@ -10,21 +15,14 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-
-  tee:
-    build: .
-    depends_on:
-      - postgres
-    environment:
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_NAME: haven
-      DATABASE_USER: haven
-      DATABASE_PASSWORD: haven_tee_secret
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./data:/data
+    restart: unless-stopped
+    command: postgres -c listen_addresses='*'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U haven -d haven"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   pgdata:
