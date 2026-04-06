@@ -1,0 +1,11 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "proof-worker/Dockerfile"
+watchPatterns = ["proof-worker/**"]
+
+[deploy]
+startCommand = "/app/proof-worker"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
