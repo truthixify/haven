@@ -31,8 +31,5 @@ WORKDIR /app
 COPY --from=builder /app/target/release/proof-worker /app/proof-worker
 
 ENV RUST_LOG=info
-ENV PORT=3001
-
-EXPOSE 3001
 
 ENTRYPOINT ["/app/proof-worker"]
