@@ -1,7 +1,6 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "proof-worker/Dockerfile"
-dockerfileContext = "proof-worker"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 healthcheckPath = "/health"
