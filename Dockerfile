@@ -2,7 +2,7 @@
 # This Dockerfile is at the repo root for Railway deployment
 # It builds only the proof-worker component
 
-FROM rust:1.86-bookworm AS builder
+FROM rust:1.93-bookworm AS builder
 
 WORKDIR /app
 

@@ -2,7 +2,7 @@
 # Build: docker build -t haven-proof-worker .
 # Run: docker run --env-file .env haven-proof-worker
 
-FROM rust:1.86-bookworm AS builder
+FROM rust:1.93-bookworm AS builder
 
 WORKDIR /app
 
