@@ -43,6 +43,7 @@ export default function WalletProfilePopover({
 }: WalletProfilePopoverProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [addressCopied, setAddressCopied] = useState(false);
 
   // Close on Escape key
   useEffect(() => {
@@ -97,9 +98,22 @@ export default function WalletProfilePopover({
                 </span>
               </div>
               <div>
-                <h2 className="font-['Space_Grotesk'] text-lg font-bold text-[#e3e2e5] leading-tight tracking-tight">
-                  {displayAddress}
-                </h2>
+                <div className="flex items-center gap-1.5">
+                  <h2 className="font-['Space_Grotesk'] text-lg font-bold text-[#e3e2e5] leading-tight tracking-tight">
+                    {displayAddress}
+                  </h2>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(address);
+                      setAddressCopied(true);
+                      setTimeout(() => setAddressCopied(false), 2000);
+                    }}
+                    className="material-symbols-outlined text-sm text-[#cbc3d7]/50 hover:text-[#d0bcff] transition-colors"
+                    title="Copy full address"
+                  >
+                    {addressCopied ? 'check' : 'content_copy'}
+                  </button>
+                </div>
                 <p className="text-xs text-[#cbc3d7] font-['JetBrains_Mono'] opacity-60">
                   Haven Protocol Node
                 </p>

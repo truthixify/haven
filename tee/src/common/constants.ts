@@ -152,5 +152,5 @@ export const PRIVACY_REPO_KEYWORDS = [
 // ---------------------------------------------------------------------------
 
 export const PROOF_WORKER_PROVE_PATH = '/prove';
-export const PROOF_WORKER_TIMEOUT_MS = 120_000;
+export const PROOF_WORKER_TIMEOUT_MS = 600_000; // 10 minutes — SP1 proof generation can take several minutes
 

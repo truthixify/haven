@@ -1,6 +1,7 @@
 import { ccc } from '@ckb-ccc/connector-react';
 import { useHavenScore } from '../hooks/useHavenScore';
 import { useDeposit } from '../hooks/useDeposit';
+import { useAuth } from '../hooks/useAuth';
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { formatRelativeTime } from '../utils/formatRelativeTime';
 import { getTierForScore } from '@haven-protocol/ckb-sdk';
@@ -12,6 +13,12 @@ import ActionLoadingOverlay from '../components/loading/ActionLoadingOverlay';
 export default function Dashboard() {
   const { wallet, open } = ccc.useCcc();
   const { score, hasScore, history, isLoading, refresh } = useHavenScore();
+  const {
+    identityCommitment,
+    isLoading: isAuthLoading,
+    registrationError,
+    registerWalletIdentity,
+  } = useAuth();
   const {
     isLoading: isDepositLoading,
     error: depositError,
@@ -61,8 +68,10 @@ export default function Dashboard() {
     );
   }
 
-  // No score found on-chain — show create score flow matching stitch layout
+  // No score — two-step onboarding: 1) Register Identity, 2) Create Score Cell
   if (!hasScore) {
+    const needsIdentity = !identityCommitment;
+
     const handleCreate = async (amount: number) => {
       const txHash = await createScoreCell(amount);
       if (txHash) {
@@ -72,102 +81,135 @@ export default function Dashboard() {
 
     return (
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left — info card matching stitch hero layout */}
+        {/* Left — info */}
         <div className="lg:col-span-7 bg-surface-container-low p-6 md:p-10 rounded-xl relative overflow-hidden">
-          {/* Subtle background noise/gradient */}
           <div className="absolute inset-0 opacity-10 pointer-events-none sovereign-gradient mix-blend-overlay" />
           <div className="relative z-10 flex flex-col items-start">
             <span className="text-xs font-mono text-secondary tracking-tighter mb-4">
-              INITIALIZE REPUTATION
+              {needsIdentity ? 'STEP 1 OF 2' : 'STEP 2 OF 2'}
             </span>
             <div className="flex items-end gap-6 mb-8">
-              <h2 className="text-4xl md:text-8xl font-headline font-bold tracking-tighter text-[#e3e2e5]">
-                Create
+              <h2 className="text-4xl md:text-7xl font-headline font-bold tracking-tighter text-[#e3e2e5]">
+                {needsIdentity ? 'Register' : 'Create'}
               </h2>
               <div className="mb-4">
                 <span className="block text-xs font-headline uppercase tracking-widest text-[#cbc3d7]">
-                  Score Tier
+                  {needsIdentity ? 'Identity' : 'Score Cell'}
                 </span>
-                <span className="inline-flex items-center px-3 py-1 bg-[#343537] text-primary text-sm font-bold rounded-full border border-[#d0bcff]/20 shadow-[0_0_15px_rgba(208,188,255,0.1)]">
+                <span className="inline-flex items-center mt-2 px-3 py-1 bg-[#343537] text-primary text-sm font-bold rounded-full border border-[#d0bcff]/20 shadow-[0_0_15px_rgba(208,188,255,0.1)]">
                   New User
                 </span>
               </div>
             </div>
             <p className="max-w-md text-[#cbc3d7] text-sm leading-relaxed">
-              Deposit CKB to create your score cell on-chain. This is a
-              one-time action that initializes your cryptographic reputation on
-              the Sovereign Privacy Layer.
+              {needsIdentity
+                ? 'Sign a message with your wallet to create your cryptographic identity. This links your wallet to the Haven Protocol TEE.'
+                : 'Deposit CKB to create your score cell on-chain. This initializes your reputation on the Sovereign Privacy Layer.'}
             </p>
+            {isAuthLoading && (
+              <div className="flex items-center gap-3 text-primary mt-4">
+                <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                <span className="text-sm font-mono">Awaiting wallet signature...</span>
+              </div>
+            )}
+            {registrationError && (
+              <p className="text-sm text-[#ffb4ab] mt-4">{registrationError}</p>
+            )}
             {isDepositLoading && (
               <div className="flex items-center gap-3 text-primary mt-4">
-                <span className="material-symbols-outlined animate-spin">
-                  progress_activity
-                </span>
+                <span className="material-symbols-outlined animate-spin">progress_activity</span>
                 <span className="text-sm font-mono">
-                  {lastTxHash
-                    ? 'Waiting for confirmation...'
-                    : 'Submitting transaction...'}
+                  {lastTxHash ? 'Waiting for confirmation...' : 'Submitting transaction...'}
                 </span>
               </div>
             )}
             {depositError && (
-              <p className="text-sm text-error mt-4">{depositError}</p>
+              <p className="text-sm text-[#ffb4ab] mt-4">{depositError}</p>
             )}
           </div>
-          {/* Decorative Element */}
           <div className="absolute -right-8 -bottom-8 w-64 h-40 border-2 border-[#d0bcff]/10 rounded-xl" />
         </div>
 
-        {/* Right — deposit form matching stitch wallet card layout */}
+        {/* Right — action panel */}
         <div className="lg:col-span-5 bg-surface-container-high p-6 md:p-8 rounded-xl flex flex-col justify-between h-full border-l-2 border-secondary">
-          <div>
-            <span className="text-xs font-headline uppercase tracking-widest text-[#cbc3d7] mb-6 block">
-              Initial Deposit
-            </span>
-            <p className="text-xs font-mono text-[#cbc3d7]/60 mt-2 uppercase">
-              Minimum: 200 CKB / Recommended: 500 CKB
-            </p>
-          </div>
-          <div className="mt-8 space-y-3">
-            {[200, 500, 1000].map((amt) => (
-              <button
-                key={amt}
-                onClick={() => !isDepositLoading && handleCreate(amt)}
-                disabled={isDepositLoading}
-                className={`w-full py-4 text-xs font-headline font-bold uppercase tracking-widest transition-all active:scale-95 ${
-                  amt === 500
-                    ? 'bg-transparent border border-[#d0bcff] text-[#d0bcff]'
-                    : 'border border-outline-variant hover:bg-[#343537] text-primary'
-                } ${isDepositLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {amt} CKB
-              </button>
-            ))}
-            <p className="text-[10px] font-mono text-[#cbc3d7]/40 mt-4">
-              ~{Math.floor(500 / 3)} score updates included with 500 CKB
-              deposit. You can top up at any time.
-            </p>
-          </div>
+          {needsIdentity ? (
+            <>
+              <div>
+                <span className="text-xs font-headline uppercase tracking-widest text-[#cbc3d7] mb-6 block">
+                  Register Identity
+                </span>
+                <p className="text-xs font-mono text-[#cbc3d7]/60 mt-2 uppercase">
+                  One-time signature to verify wallet ownership
+                </p>
+              </div>
+              <div className="mt-8">
+                <button
+                  onClick={registerWalletIdentity}
+                  disabled={isAuthLoading}
+                  className={`w-full py-4 text-xs font-headline font-bold uppercase tracking-widest transition-all active:scale-95 bg-transparent border border-[#d0bcff] text-[#d0bcff] ${
+                    isAuthLoading ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {isAuthLoading ? 'Signing...' : 'Sign & Register'}
+                </button>
+                <p className="text-[10px] font-mono text-[#cbc3d7]/40 mt-4">
+                  Your identity commitment is a Blake2b hash of your public key.
+                  It appears on the leaderboard but cannot be linked to your wallet.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-[#44e2cd] text-sm">check_circle</span>
+                  <span className="text-[10px] font-mono text-[#44e2cd] uppercase tracking-widest">Identity Registered</span>
+                </div>
+                <span className="text-xs font-headline uppercase tracking-widest text-[#cbc3d7] mb-6 block">
+                  Initial Deposit
+                </span>
+                <p className="text-xs font-mono text-[#cbc3d7]/60 mt-2 uppercase">
+                  Minimum: 200 CKB / Recommended: 500 CKB
+                </p>
+              </div>
+              <div className="mt-8 space-y-3">
+                {[200, 500, 1000].map((amt) => (
+                  <button
+                    key={amt}
+                    onClick={() => !isDepositLoading && handleCreate(amt)}
+                    disabled={isDepositLoading}
+                    className={`w-full py-4 text-xs font-headline font-bold uppercase tracking-widest transition-all active:scale-95 ${
+                      amt === 500
+                        ? 'bg-transparent border border-[#d0bcff] text-[#d0bcff]'
+                        : 'border border-outline-variant hover:bg-[#343537] text-primary'
+                    } ${isDepositLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {amt} CKB
+                  </button>
+                ))}
+                <p className="text-[10px] font-mono text-[#cbc3d7]/40 mt-4">
+                  ~{Math.floor(500 / 3)} score updates included with 500 CKB deposit.
+                </p>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Loading overlay for score cell creation */}
+        {/* Loading overlays */}
+        <ActionLoadingOverlay
+          isOpen={isAuthLoading}
+          title="Registering Sovereign Identity"
+          description="Sign the message in your wallet to verify ownership with the Phala TEE."
+          steps={[{ label: 'Awaiting Wallet Signature', status: 'processing' }]}
+        />
         <ActionLoadingOverlay
           isOpen={isDepositLoading}
           title={lastTxHash ? 'Confirming Transaction' : 'Creating Score Cell'}
-          description={
-            lastTxHash
-              ? 'Waiting for on-chain confirmation. This may take up to 2 minutes.'
-              : 'Building your Haven Score cell on CKB.'
-          }
+          description={lastTxHash ? 'Waiting for on-chain confirmation.' : 'Building your Haven Score cell on CKB.'}
           steps={
             lastTxHash
-              ? [
-                  { label: 'Transaction Submitted', status: 'verified' },
-                  { label: 'Awaiting CKB Confirmation', status: 'processing' },
-                ]
-              : [
-                  { label: 'Building CKB Transaction', status: 'processing' },
-                ]
+              ? [{ label: 'Transaction Submitted', status: 'verified' }, { label: 'Awaiting CKB Confirmation', status: 'processing' }]
+              : [{ label: 'Building CKB Transaction', status: 'processing' }]
           }
         />
       </section>

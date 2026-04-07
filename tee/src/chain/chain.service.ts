@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ccc } from '@ckb-ccc/core';
 import blake2b from 'blake2b';
 import {
   CellOutpoint,
@@ -52,6 +53,8 @@ export class ChainService implements OnModuleInit {
   private teeSigningKey!: string;
   private rpcUrl!: string;
   private network!: string;
+  private cccClient!: ccc.Client;
+  private cccSigner!: ccc.SignerCkbPrivateKey;
 
   constructor(
     private readonly config: ConfigService,
@@ -68,6 +71,12 @@ export class ChainService implements OnModuleInit {
         'TEE_SIGNING_KEY not configured - transaction submission will fail',
       );
     }
+
+    // Initialize CCC client and signer
+    this.cccClient = this.network === 'mainnet'
+      ? new ccc.ClientPublicMainnet()
+      : new ccc.ClientPublicTestnet();
+    this.cccSigner = new ccc.SignerCkbPrivateKey(this.cccClient, this.teeSigningKey);
 
     this.logger.log(`Chain service initialized for ${this.network}`);
   }
@@ -130,41 +139,7 @@ export class ChainService implements OnModuleInit {
       const newCellDataBytes = serializeScoreCellData(updatedData);
       const newCellDataHex = cellDataToHex(newCellDataBytes);
 
-      // 7. Build and submit transaction using CCC
-      //
-      // The full CCC transaction building:
-      //
-      //   import { ccc } from '@ckb-ccc/core';
-      //
-      //   const client = this.network === 'mainnet'
-      //     ? new ccc.ClientPublicMainnet()
-      //     : new ccc.ClientPublicTestnet();
-      //
-      //   const signer = new ccc.SignerCkbPrivateKey(client, this.teeSigningKey);
-      //
-      //   const tx = ccc.Transaction.from({
-      //     inputs: [{
-      //       previousOutput: {
-      //         txHash: outpoint.txHash,
-      //         index: outpoint.index,
-      //       }
-      //     }],
-      //     outputs: [{
-      //       capacity: currentCell.capacity,
-      //       lock: currentCell.lock,    // Same lock script
-      //       type: currentCell.type,     // Same type script
-      //     }],
-      //     outputsData: [newCellDataHex],
-      //     witnesses: [proof.proofBytes], // SP1 proof in witness
-      //   });
-      //
-      //   // Let CCC handle capacity and fee calculation
-      //   await tx.completeInputsByCapacity(signer);
-      //   await tx.completeFeeBy(signer, 1000);
-      //
-      //   const txHash = await signer.sendTransaction(tx);
-
-      // For now, build the raw transaction and submit via RPC
+      // Build and submit transaction using CCC
       const txHash = await this.buildAndSubmitTransaction(
         outpoint,
         newCellDataHex,
@@ -265,99 +240,90 @@ export class ChainService implements OnModuleInit {
     vkHash: string,
   ): Promise<string | null> {
     try {
-      const { default: axios } = await import('axios');
-
-      // First, fetch the input cell to get its capacity and scripts
-      const inputTxResponse = await axios.post(
-        this.rpcUrl,
-        {
-          id: 1,
-          jsonrpc: '2.0',
-          method: 'get_transaction',
-          params: [inputOutpoint.txHash],
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 15_000,
-        },
-      );
-
-      const inputTx = inputTxResponse.data?.result?.transaction;
-      if (!inputTx) {
-        throw new Error('Could not fetch input transaction');
-      }
-
-      const inputCell = inputTx.outputs[inputOutpoint.index];
-      if (!inputCell) {
-        throw new Error('Input cell not found in transaction');
-      }
-
-      // Build the proper TEE witness with the expected layout:
-      // [0]         = path_flag (0x00 for TEE update)
-      // [1..85]     = public_inputs (84 bytes, little-endian)
-      // [85..117]   = vk_hash (32 bytes)
-      // [117..121]  = proof_len (u32 LE)
-      // [121..]     = proof bytes
+      // Build the TEE witness
       const witnessHex = buildTeeWitness(publicInputs, vkHash, proofBytesHex);
 
-      // Build the raw transaction
-      const rawTx = {
-        version: '0x0',
-        cell_deps: [],
-        header_deps: [],
+      // Fetch the input cell to copy its output
+      const inputCells = await this.cccClient.getTransaction(inputOutpoint.txHash);
+      if (!inputCells) throw new Error('Could not fetch input transaction');
+
+      const inputCellOutput = inputCells.transaction.outputs[inputOutpoint.index];
+      if (!inputCellOutput) throw new Error('Input cell not found');
+
+      // Get the signer's address for the change cell
+      const signerAddress = await this.cccSigner.getRecommendedAddressObj();
+
+      // Build all required cell deps
+      const allCellDeps: ccc.CellDepLike[] = [];
+
+      // 1. Haven lock script cell dep (for the score cell's lock)
+      const lockScriptCellDepTx = this.config.get<string>('haven.lockScriptCellDepTxHash') || '';
+      if (lockScriptCellDepTx) {
+        allCellDeps.push({
+          outPoint: { txHash: lockScriptCellDepTx, index: 0 },
+          depType: 'code',
+        });
+      }
+
+      // 2. Haven type script cell dep
+      const typeScriptCellDepTx = this.config.get<string>('haven.typeScriptCellDepTxHash') || '';
+      if (typeScriptCellDepTx) {
+        allCellDeps.push({
+          outPoint: { txHash: typeScriptCellDepTx, index: 0 },
+          depType: 'code',
+        });
+      }
+
+      // 3. Registry cell dep
+      const registryTxHash = this.config.get<string>('haven.registryTxHash') || '';
+      if (registryTxHash) {
+        allCellDeps.push({
+          outPoint: { txHash: registryTxHash, index: 0 },
+          depType: 'code',
+        });
+      }
+
+      // 4. secp256k1 cell dep (for the TEE signer's fee cell)
+      try {
+        const secp = await this.cccClient.getKnownScript(ccc.KnownScript.Secp256k1Blake160);
+        for (const dep of secp.cellDeps) {
+          allCellDeps.push(dep.cellDep);
+        }
+      } catch {}
+
+      this.logger.debug(`Cell deps: ${allCellDeps.length} total`);
+
+      // Build the transaction
+      const tx = ccc.Transaction.from({
+        cellDeps: allCellDeps,
         inputs: [
           {
-            since: '0x0',
-            previous_output: {
-              tx_hash: inputOutpoint.txHash,
-              index: '0x' + inputOutpoint.index.toString(16),
+            previousOutput: {
+              txHash: inputOutpoint.txHash,
+              index: inputOutpoint.index,
             },
           },
         ],
-        outputs: [
-          {
-            capacity: inputCell.capacity,
-            lock: inputCell.lock,
-            type: inputCell.type,
-          },
-        ],
-        outputs_data: [outputDataHex],
+        outputs: [inputCellOutput],
+        outputsData: [outputDataHex as `0x${string}`],
         witnesses: [witnessHex],
-      };
+      });
 
-      // TODO: In production, use CCC to:
-      // 1. Add cell deps for the Haven type script and lock script
-      // 2. Complete inputs by capacity (for fee payment)
-      // 3. Complete fee calculation
-      // 4. Sign the transaction with the TEE private key
-      // 5. Submit via signer.sendTransaction()
+      // Let CCC add fee-paying inputs and calculate fees
+      await tx.completeInputsByCapacity(this.cccSigner);
+      await tx.completeFeeBy(this.cccSigner, 1000);
 
-      // Submit the transaction
-      const submitResponse = await axios.post(
-        this.rpcUrl,
-        {
-          id: 1,
-          jsonrpc: '2.0',
-          method: 'send_transaction',
-          params: [rawTx, 'passthrough'],
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 30_000,
-        },
-      );
-
-      if (submitResponse.data?.error) {
-        this.logger.error(
-          'Transaction submission error:',
-          submitResponse.data.error,
-        );
-        return null;
+      // Ensure our witness for input 0 wasn't overwritten by CCC
+      if (tx.witnesses.length > 0) {
+        tx.witnesses[0] = witnessHex as `0x${string}`;
       }
 
-      return submitResponse.data?.result ?? null;
+      const txHash = await this.cccSigner.sendTransaction(tx);
+
+      this.logger.log(`Transaction submitted: ${txHash}`);
+      return txHash;
     } catch (error) {
-      this.logger.error('Transaction build/submit failed', error);
+      this.logger.error('Transaction build/submit failed:', error);
       return null;
     }
   }

@@ -53,6 +53,8 @@ export default () => ({
     registryIndex: parseInt(process.env.HAVEN_REGISTRY_INDEX || '0', 10),
     typeScriptCodeHash: process.env.HAVEN_TYPE_SCRIPT_CODE_HASH || '',
     typeScriptHashType: process.env.HAVEN_TYPE_SCRIPT_HASH_TYPE || 'type',
+    typeScriptCellDepTxHash: process.env.HAVEN_TYPE_SCRIPT_CELLDEP_TX_HASH || '',
+    lockScriptCellDepTxHash: process.env.HAVEN_LOCK_SCRIPT_CELLDEP_TX_HASH || '',
   },
 
   scoring: {

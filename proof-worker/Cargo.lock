@@ -1320,7 +1320,7 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 [[package]]
 name = "automata-dcap-evm-bindings"
 version = "1.1.0"
-source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.1-alpha-3#3ee9b7b7f5061165e4a0f4f4afcfc70ed4482976"
+source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.0#9c96312657f2a905003f6ebf565d5742422f24a2"
 dependencies = [
  "alloy",
  "serde",
@@ -1329,7 +1329,7 @@ dependencies = [
 [[package]]
 name = "automata-dcap-network-registry"
 version = "1.1.0"
-source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.1-alpha-3#3ee9b7b7f5061165e4a0f4f4afcfc70ed4482976"
+source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.0#9c96312657f2a905003f6ebf565d5742422f24a2"
 dependencies = [
  "alloy",
  "anyhow",
@@ -1349,7 +1349,7 @@ dependencies = [
 [[package]]
 name = "automata-dcap-utils"
 version = "1.1.0"
-source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.1-alpha-3#3ee9b7b7f5061165e4a0f4f4afcfc70ed4482976"
+source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.0#9c96312657f2a905003f6ebf565d5742422f24a2"
 dependencies = [
  "alloy",
  "anyhow",
@@ -1364,7 +1364,7 @@ dependencies = [
 [[package]]
 name = "automata-dcap-zkvm"
 version = "1.1.0"
-source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.1-alpha-3#3ee9b7b7f5061165e4a0f4f4afcfc70ed4482976"
+source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.0#9c96312657f2a905003f6ebf565d5742422f24a2"
 dependencies = [
  "alloy",
  "alloy-primitives",
@@ -2686,7 +2686,7 @@ checksum = "d7a1e2f27636f116493b8b860f5546edb47c8d8f8ea73e1d2a20be88e28d1fea"
 [[package]]
 name = "dcap-rs"
 version = "1.1.0"
-source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.1-alpha-3#3ee9b7b7f5061165e4a0f4f4afcfc70ed4482976"
+source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.0#9c96312657f2a905003f6ebf565d5742422f24a2"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -2698,7 +2698,6 @@ dependencies = [
  "p256",
  "pem",
  "serde",
- "serde-big-array",
  "serde_json",
  "sha2",
  "time",
@@ -5139,7 +5138,7 @@ checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
 [[package]]
 name = "pccs-reader-rs"
 version = "1.1.0"
-source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.1-alpha-3#3ee9b7b7f5061165e4a0f4f4afcfc70ed4482976"
+source = "git+https://github.com/automata-network/automata-dcap-attestation?tag=v1.1.0#9c96312657f2a905003f6ebf565d5742422f24a2"
 dependencies = [
  "alloy",
  "anyhow",
@@ -6301,15 +6300,6 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
  "serde_derive",
-]
-
-[[package]]
-name = "serde-big-array"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11fc7cc2c76d73e0f27ee52abbd64eec84d46f370c88371120433196934e4b7f"
-dependencies = [
- "serde",
 ]
 
 [[package]]

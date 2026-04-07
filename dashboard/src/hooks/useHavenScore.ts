@@ -58,22 +58,30 @@ export function useHavenScore(): UseHavenScoreReturn {
 
       try {
         const addressObj = await signer.getRecommendedAddressObj();
-        const lockScript = addressObj.script;
-        const lockHash = lockScript.hash();
+        const userLockScript = addressObj.script;
         const client = signer.client;
+
+        // Derive user blake160 from lock args (same logic as useDeposit)
+        const argsClean = userLockScript.args.replace(/^0x/, '');
+        let userBlake160 = userLockScript.args;
+        if (argsClean.length > 40) {
+          userBlake160 = '0x' + argsClean.substring(2, 42);
+        }
+
+        // Haven lock args = user_blake160 + tee_blake160
+        const teePubkeyHash = config.teePubkeyHash.replace(/^0x/, '');
+        const havenLockArgs = '0x' + userBlake160.replace(/^0x/, '') + teePubkeyHash;
 
         let cellData: Uint8Array | null = null;
 
         if (isTypeScriptDeployed()) {
-          // Search by type script
-          const typeCodeHash = config.havenTypeScriptCodeHash || HAVEN_TYPE_SCRIPT_CODE_HASH;
-          const typeHashType = config.havenTypeScriptHashType || HAVEN_TYPE_SCRIPT_HASH_TYPE;
-          const typeScript = ccc.Script.from({
-            codeHash: typeCodeHash,
-            hashType: typeHashType,
-            args: lockHash,
+          // Search by Haven lock script (the score cell's lock)
+          const havenLock = ccc.Script.from({
+            codeHash: config.havenLockScriptCodeHash,
+            hashType: config.havenLockScriptHashType,
+            args: havenLockArgs,
           });
-          const collector = client.findCellsByType(typeScript, true);
+          const collector = client.findCellsByLock(havenLock, null, true);
           for await (const cell of collector) {
             const hex = String(cell.outputData);
             const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
@@ -85,10 +93,31 @@ export function useHavenScore(): UseHavenScoreReturn {
               break;
             }
           }
+
+          // Also try searching by type script args (for backward compat)
+          if (!cellData) {
+            const typeScript = ccc.Script.from({
+              codeHash: config.havenTypeScriptCodeHash || HAVEN_TYPE_SCRIPT_CODE_HASH,
+              hashType: config.havenTypeScriptHashType || HAVEN_TYPE_SCRIPT_HASH_TYPE,
+              args: havenLockArgs,
+            });
+            const collector2 = client.findCellsByType(typeScript, true);
+            for await (const cell of collector2) {
+              const hex = String(cell.outputData);
+              const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
+              if (clean.length / 2 === SCORE_CELL_SIZE) {
+                cellData = new Uint8Array(clean.length / 2);
+                for (let i = 0; i < clean.length; i += 2) {
+                  cellData[i / 2] = parseInt(clean.substring(i, i + 2), 16);
+                }
+                break;
+              }
+            }
+          }
         } else {
           // Type script not deployed — search by lock for 127-byte cells
           const collector = signer.findCells(
-            { script: lockScript, scriptType: 'lock', withData: true },
+            { script: userLockScript, scriptType: 'lock', withData: true },
             true,
           );
           for await (const cell of collector) {

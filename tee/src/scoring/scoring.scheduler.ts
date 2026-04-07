@@ -121,7 +121,8 @@ export class ScoringScheduler {
       );
 
       let processed = 0;
-      let succeeded = 0;
+      let confirmed = 0;  // Score submitted AND confirmed on-chain
+      let partial = 0;     // Score computed but NOT on-chain
       let failed = 0;
       let skipped = 0;
 
@@ -146,8 +147,10 @@ export class ScoringScheduler {
           if (result.status === 'fulfilled') {
             if (result.value === 'skipped') {
               skipped++;
+            } else if (result.value === 'done') {
+              confirmed++;
             } else {
-              succeeded++;
+              partial++;
             }
           } else {
             failed++;
@@ -158,14 +161,14 @@ export class ScoringScheduler {
         }
 
         this.logger.log(
-          `Batch progress: ${processed}/${totalUsers} (${succeeded} ok, ${failed} failed, ${skipped} skipped)`,
+          `Batch progress: ${processed}/${totalUsers} (${confirmed} confirmed, ${partial} scored-only, ${failed} failed, ${skipped} skipped)`,
         );
       }
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       this.logger.log(
         `=== Scoring Cycle Epoch ${epoch} Complete ===` +
-          ` ${succeeded} succeeded, ${failed} failed, ${skipped} skipped` +
+          ` ${confirmed} confirmed on-chain, ${partial} scored-only, ${failed} failed, ${skipped} skipped` +
           ` in ${duration}s`,
       );
     } catch (error) {
@@ -190,13 +193,19 @@ export class ScoringScheduler {
     epoch: number,
     proofWorkerAvailable: boolean,
     programHash?: Buffer,
-  ): Promise<'done' | 'skipped'> {
+  ): Promise<'done' | 'partial' | 'skipped'> {
     const identity = user.identityCommitment;
     const shortId = identity.substring(0, 16);
 
     // Skip if user was already scored this epoch
     if (user.lastScoredEpoch !== undefined && user.lastScoredEpoch >= epoch) {
       this.logger.debug(`Skipping ${shortId}... (already scored epoch ${epoch})`);
+      return 'skipped';
+    }
+
+    // Skip if user has no score cell outpoint — nothing to update on-chain
+    if (!user.scoreCellOutpoint) {
+      this.logger.debug(`Skipping ${shortId}... (no score cell outpoint)`);
       return 'skipped';
     }
 
@@ -215,7 +224,9 @@ export class ScoringScheduler {
     // Get previous score from DB (not chain — chain may not be updated yet)
     const previousScore = (user as any).lastComputedScore ?? 0;
 
-    // Steps 3-5: Attestation, proof, and chain submission — only if proof worker is up
+    // Steps 3-5: Attestation, proof, and chain submission
+    let chainSubmitted = false;
+
     if (proofWorkerAvailable) {
       try {
         await this.performAttestationAndChainSubmit(
@@ -225,37 +236,42 @@ export class ScoringScheduler {
           previousScore,
           programHash,
         );
+        chainSubmitted = true;
+        this.logger.log(`${shortId}... score update submitted on-chain`);
       } catch (error) {
-        this.logger.warn(
-          `Attestation/proof/chain steps failed for ${shortId}... (score still recorded): ${error}`,
+        this.logger.error(
+          `${shortId}... attestation/proof/chain FAILED: ${error}`,
         );
       }
     } else {
-      this.logger.debug(
-        `${shortId}... — skipping attestation/proof/chain (proof worker unavailable)`,
+      this.logger.warn(
+        `${shortId}... — proof worker unavailable, skipping attestation/proof/chain`,
       );
     }
 
-    // Step 6: Create notifications for the user (always, even without proof)
-    await this.createScoringNotifications(
-      identity,
-      previousScore,
-      scoringResult,
-      epoch,
-      user,
-    );
+    // Only create notifications and update DB if chain submission succeeded
+    // OR if this is a first-time score (no previous on-chain score)
+    if (chainSubmitted || previousScore === 0) {
+      await this.createScoringNotifications(
+        identity,
+        previousScore,
+        scoringResult,
+        epoch,
+        user,
+      );
 
-    // Update DB with last scored epoch and computed score
-    await this.databaseService.updateUserRecord(identity, {
-      lastScoredEpoch: epoch,
-      lastComputedScore: scoringResult.score,
-    });
+      await this.databaseService.updateUserRecord(identity, {
+        lastScoredEpoch: epoch,
+        lastComputedScore: scoringResult.score,
+      });
+    }
 
+    const status = chainSubmitted ? 'confirmed' : 'scored_only';
     this.logger.log(
-      `${shortId}... scored: ${scoringResult.score} (privacy=${scoringResult.breakdown.privacy}, contribution=${scoringResult.breakdown.contribution}, humanity=${scoringResult.breakdown.humanity}, community=${scoringResult.breakdown.community}) epoch ${epoch}`,
+      `${shortId}... [${status}] score=${scoringResult.score} (privacy=${scoringResult.breakdown.privacy}, contribution=${scoringResult.breakdown.contribution}, humanity=${scoringResult.breakdown.humanity}, community=${scoringResult.breakdown.community}) epoch ${epoch}`,
     );
 
-    return 'done';
+    return chainSubmitted ? 'done' : 'partial';
   }
 
   /**
@@ -308,16 +324,17 @@ export class ScoringScheduler {
 
     // Step 5: Build and submit CKB transaction
     if (user.scoreCellOutpoint) {
-      await this.chainService.submitScoreUpdate(
+      const txHash = await this.chainService.submitScoreUpdate(
         user.scoreCellOutpoint,
         scoringResult,
         proof,
         programHash ?? Buffer.alloc(32),
       );
+      if (!txHash) {
+        throw new Error('Chain submission returned null — transaction failed');
+      }
     } else {
-      this.logger.warn(
-        `No score cell outpoint for ${identity.substring(0, 16)}... - skipping chain submission`,
-      );
+      throw new Error('No score cell outpoint — cannot submit to chain');
     }
   }
 

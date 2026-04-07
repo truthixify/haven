@@ -8,9 +8,11 @@ import {
   SCORE_CELL_SIZE,
   serializeScoreCell,
 } from '@haven-protocol/ckb-sdk';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { HavenTeeClient } from '@haven-protocol/ckb-sdk/tee';
 import type { DepositHistoryEntry } from '../types';
 import { config } from '../config';
+
+const teeClient = new HavenTeeClient(config.teeEndpoint);
 
 const SHANNON_PER_CKB = BigInt(100_000_000);
 
@@ -140,17 +142,43 @@ export function useDeposit(): UseDepositReturn {
 
       try {
         const addressObj = await signer.getRecommendedAddressObj();
-        const lockScript = addressObj.script;
-        const lockHash = lockScript.hash();
+        const userLockScript = addressObj.script;
+        const userLockArgs = userLockScript.args;
+
+        // Derive user's blake160 pubkey hash (20 bytes) for the Haven lock args
+        // For secp256k1: lock args IS the blake160
+        // For omnilock/JoyID: extract the first 20 bytes from lock args
+        let userBlake160 = userLockArgs;
+        const argsClean = userLockArgs.replace(/^0x/, '');
+        if (argsClean.length > 40) {
+          // Omnilock args are longer — extract the 20-byte auth content
+          // Format: flags(1) + blake160(20) + ... so bytes 1-21 (hex chars 2-42)
+          userBlake160 = '0x' + argsClean.substring(2, 42);
+        }
 
         const depositShannons = BigInt(Math.floor(depositAmountCKB * 1e8));
 
-        // Build the initial 127-byte score cell data using the SDK serializer
+        // Build Haven lock script args: user_pubkey_hash(20) | tee_pubkey_hash(20)
+        const teePubkeyHash = config.teePubkeyHash.replace(/^0x/, '');
+        const userHash = userBlake160.replace(/^0x/, '');
+        const havenLockArgs = '0x' + userHash + teePubkeyHash;
+
+        // Build the Haven dual-path lock script
+        const havenLock = {
+          codeHash: config.havenLockScriptCodeHash,
+          hashType: config.havenLockScriptHashType,
+          args: havenLockArgs,
+        };
+
+        // User identity = blake2b of the haven lock args (or just the user blake160 padded to 32 bytes)
+        const identityHex = '0x' + userHash.padEnd(64, '0');
+
+        // Build the initial 127-byte score cell data
         const initialData = serializeScoreCell({
           version: 1,
           score: 0,
           epoch: 0,
-          userIdentity: lockHash, // 32-byte lock hash as identity
+          userIdentity: identityHex,
           programHash: '0x' + '00'.repeat(32),
           proofHash: '0x' + '00'.repeat(32),
           breakdown: { privacy: 0, contribution: 0, humanity: 0, community: 0 },
@@ -165,17 +193,26 @@ export function useDeposit(): UseDepositReturn {
             .map((b) => b.toString(16).padStart(2, '0'))
             .join('');
 
-        // Build output cell — include type script and its cell dep
+        // Build output cell with Haven lock + type script
         const typeInfo = getTypeScriptInfo();
 
-        const outputCell: Record<string, unknown> = { lock: lockScript };
+        const outputCell: Record<string, unknown> = { lock: havenLock };
         const cellDeps: Array<Record<string, unknown>> = [];
+
+        // Cell dep for the Haven lock script binary
+        cellDeps.push({
+          outPoint: {
+            txHash: config.havenLockScriptCellDepTxHash,
+            index: config.havenLockScriptCellDepIndex,
+          },
+          depType: 'code',
+        });
 
         if (typeInfo) {
           outputCell.type = {
             codeHash: typeInfo.codeHash,
             hashType: typeInfo.hashType,
-            args: lockHash,
+            args: havenLockArgs,
           };
           // Cell dep for the type script binary
           cellDeps.push({
@@ -185,7 +222,7 @@ export function useDeposit(): UseDepositReturn {
             },
             depType: 'code',
           });
-          // Cell dep for the registry cell (type script reads protocol config from it)
+          // Cell dep for the registry cell
           cellDeps.push({
             outPoint: {
               txHash: config.havenRegistryCellDepTxHash,
@@ -201,7 +238,7 @@ export function useDeposit(): UseDepositReturn {
           outputsData: [dataHex],
         });
 
-        // Let CCC calculate the minimum capacity for the output cell
+        // User pays for cell creation from their wallet
         await tx.completeInputsByCapacity(signer);
         await tx.completeFeeBy(signer, 1000);
         const txHash = await signer.sendTransaction(tx);
@@ -210,6 +247,20 @@ export function useDeposit(): UseDepositReturn {
 
         // Wait for tx confirmation on-chain
         await waitForConfirmation(signer.client, txHash);
+
+        // Save the score cell outpoint to the TEE so it can update the score later
+        try {
+          const addr = (await signer.getRecommendedAddressObj()).toString();
+          const identity = localStorage.getItem(`haven_identity_${addr}`);
+          if (identity) {
+            console.log('[Haven] Saving score cell outpoint:', identity.substring(0, 16), txHash);
+            await teeClient.saveScoreCellOutpoint(identity, txHash, 0);
+          } else {
+            console.warn('[Haven] No identity in localStorage — register identity first');
+          }
+        } catch (err) {
+          console.error('[Haven] Failed to save outpoint:', err);
+        }
 
         setIsLoading(false);
         return txHash;

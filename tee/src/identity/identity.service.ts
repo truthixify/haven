@@ -145,6 +145,23 @@ export class IdentityService {
   }
 
   /**
+   * Save the score cell outpoint for a user.
+   * Called after the dashboard creates a score cell on-chain.
+   */
+  async saveScoreCellOutpoint(
+    identityCommitment: string,
+    txHash: string,
+    index: number,
+  ): Promise<void> {
+    await this.databaseService.updateUserRecord(identityCommitment, {
+      scoreCellOutpoint: { txHash, index },
+    });
+    this.logger.log(
+      `Score cell outpoint saved for ${identityCommitment.substring(0, 16)}...: ${txHash}:${index}`,
+    );
+  }
+
+  /**
    * Update the lock script info for a user — used for on-chain activity scoring.
    * Different wallet types (secp256k1, omnilock, JoyID) have different lock scripts.
    */

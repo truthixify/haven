@@ -18,7 +18,7 @@ services:
       start_period: 10s
 
   tee-app:
-    image: truthixify/haven-tee:latest
+    image: truthixify/haven-tee:latest@sha256:1e78b7e25c875bb39ae14cba9b8797e4386796f8af80bc92de19f1c73fc82169
     container_name: haven-tee
     environment:
       # Database (connects to the db service above)
@@ -45,6 +45,8 @@ services:
       HAVEN_REGISTRY_INDEX: ${HAVEN_REGISTRY_INDEX:-0}
       HAVEN_TYPE_SCRIPT_CODE_HASH: ${HAVEN_TYPE_SCRIPT_CODE_HASH}
       HAVEN_TYPE_SCRIPT_HASH_TYPE: ${HAVEN_TYPE_SCRIPT_HASH_TYPE:-type}
+      HAVEN_TYPE_SCRIPT_CELLDEP_TX_HASH: ${HAVEN_TYPE_SCRIPT_CELLDEP_TX_HASH}
+      HAVEN_LOCK_SCRIPT_CELLDEP_TX_HASH: ${HAVEN_LOCK_SCRIPT_CELLDEP_TX_HASH}
 
       # OAuth (optional)
       TWITTER_CLIENT_ID: ${TWITTER_CLIENT_ID:-}

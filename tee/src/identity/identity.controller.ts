@@ -126,4 +126,31 @@ export class IdentityController {
       this.identityService.getCommitmentForPubKey(body.ckbPubKey);
     return { identityCommitment };
   }
+
+  /**
+   * Save the user's score cell outpoint after creating it on-chain.
+   * The TEE needs this to know where the score cell is for updates.
+   */
+  @Post('score-cell')
+  @HttpCode(HttpStatus.OK)
+  async saveScoreCellOutpoint(
+    @Body() body: { identityCommitment: string; txHash: string; index: number },
+  ): Promise<{ success: boolean }> {
+    if (!body.identityCommitment || !body.txHash) {
+      throw new BadRequestException('Missing identityCommitment or txHash');
+    }
+
+    const exists = await this.identityService.isRegistered(body.identityCommitment);
+    if (!exists) {
+      throw new BadRequestException('Identity not registered');
+    }
+
+    await this.identityService.saveScoreCellOutpoint(
+      body.identityCommitment,
+      body.txHash,
+      body.index ?? 0,
+    );
+
+    return { success: true };
+  }
 }

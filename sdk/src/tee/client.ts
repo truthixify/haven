@@ -240,6 +240,21 @@ export class HavenTeeClient {
     );
   }
 
+  /**
+   * Save the score cell outpoint after creating it on-chain.
+   * The TEE needs this to locate the cell for score updates.
+   */
+  async saveScoreCellOutpoint(
+    identityCommitment: string,
+    txHash: string,
+    index = 0,
+  ): Promise<void> {
+    await this.request('/identity/score-cell', {
+      method: 'POST',
+      body: JSON.stringify({ identityCommitment, txHash, index }),
+    });
+  }
+
   // -----------------------------------------------------------------------
   // Connection status
   // -----------------------------------------------------------------------
