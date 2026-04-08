@@ -1,0 +1,12 @@
+[package]
+name = "dcap-sp1-guest"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = "6.0"
+dcap-rs = { path = "../vendor/automata-dcap/dcap-rs", default-features = false, features = ["full"] }
+alloy-sol-types = { version = "1.0", default-features = false }
+tiny-keccak = { version = "2.0", features = ["keccak"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+der = { version = "0.7", default-features = false, features = ["alloc"] }
