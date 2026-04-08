@@ -81,14 +81,17 @@ impl ZkVmProver for Sp1Prover {
     fn program_identifier(&self) -> Result<String> {
         log::info!("Computing verifying key for SP1 DCAP program...");
 
-        // Use a runtime to run async setup
-        let rt = tokio::runtime::Handle::current();
-        let vk_string = rt.block_on(async {
-            let client = ProverClient::builder().mock().build().await;
-            let pk = client.setup(Elf::Static(self.elf)).await
-                .map_err(|e| anyhow::anyhow!("{}", e))?;
-            Ok::<String, anyhow::Error>(pk.verifying_key().bytes32())
-        })?;
+        // Run async setup in a separate thread to avoid block_on inside tokio runtime
+        let elf = self.elf;
+        let vk_string = std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let client = ProverClient::builder().mock().build().await;
+                let pk = client.setup(Elf::Static(elf)).await
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                Ok::<String, anyhow::Error>(pk.verifying_key().bytes32())
+            })
+        }).join().map_err(|_| anyhow::anyhow!("thread panicked"))??;
 
         Ok(vk_string)
     }
