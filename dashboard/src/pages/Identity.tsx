@@ -13,6 +13,7 @@ export default function Identity() {
     connections,
     identityCommitment,
     isLoading,
+    isChecking,
     registrationError,
     registerWalletIdentity,
   } = useAuth();
@@ -40,6 +41,21 @@ export default function Identity() {
           </button>
         </div>
       </div>
+    );
+  }
+
+  // Checking identity with TEE
+  if (isChecking) {
+    return (
+      <ActionLoadingOverlay
+        isOpen={true}
+        title="Loading Identity"
+        description="Resolving your identity commitment from the Phala TEE enclave."
+        steps={[
+          { label: 'Wallet Connected', status: 'verified' },
+          { label: 'Checking TEE Identity', status: 'processing' },
+        ]}
+      />
     );
   }
 

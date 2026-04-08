@@ -2,17 +2,25 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ccc } from '@ckb-ccc/connector-react';
-import { HavenProvider } from '@haven-protocol/ckb-sdk/react';
+import { HavenProvider } from '@haven-protocol-ckb/sdk/react';
 import App from './App';
+import { config } from './config';
 import './index.css';
 
 /**
- * HavenProviderBridge — bridges the CCC client into the HavenProvider.
+ * HavenProviderBridge — bridges the CCC client into the HavenProvider
+ * with the correct type script code hash from config.
  */
 function HavenProviderBridge({ children }: { children: React.ReactNode }) {
   const { client } = ccc.useCcc();
   return (
-    <HavenProvider client={client}>
+    <HavenProvider
+      client={client}
+      options={{
+        typeScriptCodeHash: config.havenTypeScriptCodeHash,
+        typeScriptHashType: config.havenTypeScriptHashType,
+      }}
+    >
       {children}
     </HavenProvider>
   );

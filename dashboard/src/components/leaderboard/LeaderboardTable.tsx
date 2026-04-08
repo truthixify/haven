@@ -1,4 +1,4 @@
-import type { LeaderboardEntry } from '@haven-protocol/ckb-sdk';
+import type { LeaderboardEntry } from '@haven-protocol-ckb/sdk';
 import type { LeaderboardSortField, SortDirection } from '../../types';
 import LeaderboardRow from './LeaderboardRow';
 

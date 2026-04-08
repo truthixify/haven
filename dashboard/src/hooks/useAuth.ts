@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSigner } from '@ckb-ccc/connector-react';
-import { HavenTeeClient } from '@haven-protocol/ckb-sdk/tee';
+import { HavenTeeClient } from '@haven-protocol-ckb/sdk/tee';
 import type { ConnectionStatus } from '../types';
 import { config } from '../config';
 
@@ -10,6 +10,7 @@ interface AuthState {
   connections: ConnectionStatus;
   identityCommitment: string | null;
   isLoading: boolean;
+  isChecking: boolean;
   registrationError: string | null;
 }
 
@@ -37,6 +38,7 @@ export function useAuth() {
     connections: { twitter: false, github: false, wallet: false },
     identityCommitment: null,
     isLoading: false,
+    isChecking: !!signer,
     registrationError: null,
   });
 
@@ -54,10 +56,16 @@ export function useAuth() {
             connections: { twitter: false, github: false, wallet: false },
             identityCommitment: null,
             isLoading: false,
+            isChecking: false,
             registrationError: null,
           });
         }
         return;
+      }
+
+      // Mark as checking while we resolve identity
+      if (!cancelled) {
+        setState((prev) => ({ ...prev, isChecking: true }));
       }
 
       try {
@@ -88,28 +96,32 @@ export function useAuth() {
           const { registered } = await teeClient.checkIdentity(identityCommitment);
 
           if (!cancelled) {
-            if (registered) {
-              setState((prev) => ({
-                ...prev,
-                identityCommitment,
-                connections: { ...prev.connections, wallet: true },
-              }));
-            }
-            // If not registered, identityCommitment stays null
-            // and the Identity page shows the "Register" button
+            setState((prev) => ({
+              ...prev,
+              isChecking: false,
+              ...(registered
+                ? { identityCommitment, connections: { ...prev.connections, wallet: true } }
+                : {}),
+            }));
           }
         } catch {
           // TEE unreachable — check localStorage fallback
           try {
             const cached = localStorage.getItem(`haven_identity_${addr}`);
-            if (!cancelled && cached) {
-              setState((prev) => ({ ...prev, identityCommitment: cached }));
+            if (!cancelled) {
+              setState((prev) => ({
+                ...prev,
+                isChecking: false,
+                ...(cached ? { identityCommitment: cached } : {}),
+              }));
             }
-          } catch {}
+          } catch {
+            if (!cancelled) setState((prev) => ({ ...prev, isChecking: false }));
+          }
         }
       } catch {
         if (!cancelled) {
-          setState((prev) => ({ ...prev, isWalletConnected: false, address: null }));
+          setState((prev) => ({ ...prev, isWalletConnected: false, address: null, isChecking: false }));
         }
       }
     }

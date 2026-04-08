@@ -1,4 +1,4 @@
-import type { LeaderboardEntry } from '@haven-protocol/ckb-sdk';
+import type { LeaderboardEntry } from '@haven-protocol-ckb/sdk';
 import TierBadge from '../score/TierBadge';
 
 interface LeaderboardRowProps {

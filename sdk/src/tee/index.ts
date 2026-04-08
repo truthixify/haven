@@ -8,4 +8,4 @@
  */
 
 export { HavenTeeClient } from './client';
-export type { ConnectionStatus, HavenNotification, TeeClientOptions, TeeHealthStatus } from './types';
+export type { ConnectionStatus, HavenNotification, ScoreHistoryEntry, TeeClientOptions, TeeHealthStatus } from './types';

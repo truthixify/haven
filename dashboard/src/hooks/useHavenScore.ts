@@ -5,8 +5,8 @@ import {
   SCORE_CELL_SIZE,
   HAVEN_TYPE_SCRIPT_CODE_HASH,
   HAVEN_TYPE_SCRIPT_HASH_TYPE,
-} from '@haven-protocol/ckb-sdk';
-import type { HavenScore } from '@haven-protocol/ckb-sdk';
+} from '@haven-protocol-ckb/sdk';
+import type { HavenScore } from '@haven-protocol-ckb/sdk';
 import type { ScoreHistoryPoint } from '../types';
 import { config } from '../config';
 
@@ -35,14 +35,29 @@ function isTypeScriptDeployed(): boolean {
  * When not deployed (local dev), searches by lock script for cells with
  * exactly 127 bytes of data (the Haven Score cell size).
  */
+// Shared refresh trigger — all useHavenScore instances re-fetch together
+let globalRefreshListeners: Array<() => void> = [];
+function triggerGlobalRefresh() {
+  globalRefreshListeners.forEach((fn) => fn());
+}
+
 export function useHavenScore(): UseHavenScoreReturn {
   const signer = useSigner();
   const [score, setScore] = useState<HavenScore | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!signer);
   const [error, setError] = useState<string | null>(null);
   const [fetchCount, setFetchCount] = useState(0);
 
-  const refresh = useCallback(() => setFetchCount((c) => c + 1), []);
+  // Register this instance to listen for global refreshes
+  useEffect(() => {
+    const listener = () => setFetchCount((c) => c + 1);
+    globalRefreshListeners.push(listener);
+    return () => {
+      globalRefreshListeners = globalRefreshListeners.filter((fn) => fn !== listener);
+    };
+  }, []);
+
+  const refresh = useCallback(() => triggerGlobalRefresh(), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,10 +65,11 @@ export function useHavenScore(): UseHavenScoreReturn {
     async function fetchScore() {
       if (!signer) {
         setScore(null);
+        setIsLoading(false);
         return;
       }
 
-      // Only show loading spinner on initial fetch, not on background refreshes
+      // Show loading on initial fetch only, not background refreshes
       if (fetchCount === 0) {
         setIsLoading(true);
       }

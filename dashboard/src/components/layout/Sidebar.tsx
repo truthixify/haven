@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ccc, useSigner } from '@ckb-ccc/connector-react';
-import { getTierForScore } from '@haven-protocol/ckb-sdk';
+import { getTierForScore } from '@haven-protocol-ckb/sdk';
 import WalletProfilePopover from '../wallet/WalletProfilePopover';
 import { useAuth } from '../../hooks/useAuth';
 import { useHavenScore } from '../../hooks/useHavenScore';

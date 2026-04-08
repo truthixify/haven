@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { HavenScore } from '@haven-protocol/ckb-sdk';
-import { getTierForScore } from '@haven-protocol/ckb-sdk';
+import type { HavenScore } from '@haven-protocol-ckb/sdk';
+import { getTierForScore } from '@haven-protocol-ckb/sdk';
 import TierBadge from './TierBadge';
 
 interface ScoreCardProps {

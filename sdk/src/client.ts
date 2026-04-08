@@ -105,13 +105,21 @@ export class HavenClient {
   /**
    * Collect all live cells matching the Haven Score type script.
    * Optionally filter by a specific lock hash in the type script args.
+   * Uses prefix search mode so that searching with empty args finds all score cells.
    */
   private async collectScoreCells(lockHash?: string): Promise<HavenScore[]> {
     const typeScript = this.buildScoreTypeScript(lockHash);
     const currentBlock = await this.getTipBlockNumber();
     const scores: HavenScore[] = [];
 
-    const collector = this.cccClient.findCellsByType(typeScript, true);
+    const collector = this.cccClient.findCells(
+      {
+        script: typeScript,
+        scriptType: 'type',
+        scriptSearchMode: 'prefix',
+        withData: true,
+      },
+    );
 
     for await (const cell of collector) {
       const outputData = cell.outputData;

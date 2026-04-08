@@ -22,7 +22,7 @@
  * ```
  */
 
-import type { ConnectionStatus, HavenNotification, TeeClientOptions, TeeHealthStatus } from './types';
+import type { ConnectionStatus, HavenNotification, ScoreHistoryEntry, TeeClientOptions, TeeHealthStatus } from './types';
 
 // Default timeout for all requests (30 seconds)
 const DEFAULT_TIMEOUT = 30_000;
@@ -389,6 +389,34 @@ export class HavenTeeClient {
     } catch {
       return false;
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // Score history
+  // -----------------------------------------------------------------------
+
+  /**
+   * Fetch the score history for a given identity commitment.
+   *
+   * Returns an array of historical score entries ordered by epoch descending,
+   * including the per-component breakdown and the on-chain transaction hash.
+   *
+   * @param identityCommitment - Hex-encoded identity commitment.
+   * @param limit - Maximum number of history entries to return (default 50).
+   * @returns Array of ScoreHistoryEntry objects.
+   */
+  async getScoreHistory(
+    identityCommitment: string,
+    limit = 50,
+  ): Promise<ScoreHistoryEntry[]> {
+    const params = new URLSearchParams({
+      commitment: identityCommitment,
+      limit: String(limit),
+    });
+    const result = await this.request<{ history: ScoreHistoryEntry[] }>(
+      `/score/history?${params.toString()}`,
+    );
+    return result.history;
   }
 
   // -----------------------------------------------------------------------

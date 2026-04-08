@@ -5,9 +5,9 @@ import { useDeposit } from '../hooks/useDeposit';
 import { useAuth } from '../hooks/useAuth';
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { formatRelativeTime } from '../utils/formatRelativeTime';
-import { getTierForScore } from '@haven-protocol/ckb-sdk';
-import type { ScoreBreakdown as BreakdownType } from '@haven-protocol/ckb-sdk';
-import { HavenTeeClient } from '@haven-protocol/ckb-sdk/tee';
+import { getTierForScore } from '@haven-protocol-ckb/sdk';
+import type { ScoreBreakdown as BreakdownType } from '@haven-protocol-ckb/sdk';
+import { HavenTeeClient } from '@haven-protocol-ckb/sdk/tee';
 import { formatCkbAmount } from '../hooks/useDeposit';
 import { config } from '../config';
 import ScoreHistoryChart from '../components/score/ScoreHistory';
@@ -19,6 +19,7 @@ export default function Dashboard() {
   const {
     identityCommitment,
     isLoading: isAuthLoading,
+    isChecking: isAuthChecking,
     registrationError,
     registerWalletIdentity,
   } = useAuth();
@@ -72,8 +73,22 @@ export default function Dashboard() {
     );
   }
 
+  // Show loading overlay while resolving identity or searching score cells
+  if (isLoading || isAuthChecking) {
+    return (
+      <ActionLoadingOverlay
+        isOpen={true}
+        title="Loading Haven Dashboard"
+        description="Querying your Haven Score cell and deposit balance from CKB testnet."
+        steps={[
+          { label: 'Resolving Wallet Lock Hash', status: 'verified' },
+          { label: 'Searching Score Cells on CKB', status: 'processing' },
+        ]}
+      />
+    );
+  }
+
   // No score — two-step onboarding: 1) Register Identity, 2) Create Score Cell
-  // (shown even while score search is still loading — don't block the UI)
   if (!hasScore) {
     const needsIdentity = !identityCommitment;
 
@@ -304,7 +319,7 @@ export default function Dashboard() {
           )}
           {lastTxHash && (
             <a
-              href={`https://pudge.explorer.nervos.org/transaction/${lastTxHash}`}
+              href={`https://testnet.explorer.nervos.org/transaction/${lastTxHash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-xs text-secondary mt-2 truncate hover:text-[#44e2cd] transition-colors"

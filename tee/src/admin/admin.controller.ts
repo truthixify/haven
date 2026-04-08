@@ -11,6 +11,7 @@ import { Repository } from 'typeorm';
 import { UserEntity } from '../storage/entities/user.entity';
 import { ConnectionEntity } from '../storage/entities/connection.entity';
 import { NotificationEntity } from '../notifications/notification.entity';
+import { ScoreHistoryEntity } from '../storage/entities/score-history.entity';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -24,6 +25,8 @@ export class AdminController {
     private readonly connectionRepo: Repository<ConnectionEntity>,
     @InjectRepository(NotificationEntity)
     private readonly notificationRepo: Repository<NotificationEntity>,
+    @InjectRepository(ScoreHistoryEntity)
+    private readonly scoreHistoryRepo: Repository<ScoreHistoryEntity>,
   ) {}
 
   @Delete('clear-db')
@@ -61,7 +64,8 @@ export class AdminController {
     const connCount = await this.connectionRepo.count();
     const userCount = await this.userRepo.count();
 
-    // Clear in order: notifications, connections, users (FK-safe)
+    // Clear in order: score_history, notifications, connections, users (FK-safe)
+    await this.scoreHistoryRepo.clear();
     await this.notificationRepo.clear();
     await this.connectionRepo.clear();
     await this.userRepo.clear();

@@ -1,4 +1,4 @@
-import type { TierName } from '@haven-protocol/ckb-sdk';
+import type { TierName } from '@haven-protocol-ckb/sdk';
 
 interface TierBadgeProps {
   tier: TierName;

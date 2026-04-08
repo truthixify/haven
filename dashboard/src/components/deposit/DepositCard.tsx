@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DEFAULT_MIN_DEPOSIT, DEFAULT_PER_UPDATE_FEE } from '@haven-protocol/ckb-sdk';
+import { DEFAULT_MIN_DEPOSIT, DEFAULT_PER_UPDATE_FEE } from '@haven-protocol-ckb/sdk';
 import { estimateUpdatesRemaining, isLowBalance, formatCkbAmount } from '../../hooks/useDeposit';
 
 const SHANNON_PER_CKB = BigInt(100_000_000);

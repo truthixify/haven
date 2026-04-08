@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { HavenTeeClient } from '@haven-protocol/ckb-sdk/tee';
-import type { TeeHealthStatus } from '@haven-protocol/ckb-sdk/tee';
+import { HavenTeeClient } from '@haven-protocol-ckb/sdk/tee';
+import type { TeeHealthStatus } from '@haven-protocol-ckb/sdk/tee';
 import { config } from '../config';
 
 /** How often we poll the TEE health endpoint (ms). */

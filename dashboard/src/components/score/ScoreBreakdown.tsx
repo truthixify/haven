@@ -1,5 +1,5 @@
-import type { ScoreBreakdown as BreakdownType } from '@haven-protocol/ckb-sdk';
-import { MAX_COMPONENT_SCORES } from '@haven-protocol/ckb-sdk';
+import type { ScoreBreakdown as BreakdownType } from '@haven-protocol-ckb/sdk';
+import { MAX_COMPONENT_SCORES } from '@haven-protocol-ckb/sdk';
 import { useSystemStatus } from '../../hooks/useSystemStatus';
 import { formatRelativeTime } from '../../utils/formatRelativeTime';
 

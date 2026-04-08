@@ -8,6 +8,7 @@ import { ProofWorkerClient } from '../attestation/proof-worker.client';
 import { ChainService } from '../chain/chain.service';
 import { RegistryService } from '../chain/registry.service';
 import { NotificationService } from '../notifications/notification.service';
+import { ScoreHistoryService } from '../storage/score-history.service';
 import { ScoringResult, SealedUserRecord, SP1PublicInputs } from '../common/types';
 import { LOW_BALANCE_THRESHOLD } from '../common/constants';
 
@@ -52,6 +53,7 @@ export class ScoringScheduler {
     private readonly chainService: ChainService,
     private readonly registryService: RegistryService,
     private readonly notificationService: NotificationService,
+    private readonly scoreHistoryService: ScoreHistoryService,
   ) {}
 
   /**
@@ -197,9 +199,8 @@ export class ScoringScheduler {
     const identity = user.identityCommitment;
     const shortId = identity.substring(0, 16);
 
-    // Skip if user was already scored this epoch
+    // Skip if user was already scored AND confirmed this epoch
     if (user.lastScoredEpoch !== undefined && user.lastScoredEpoch >= epoch) {
-      this.logger.debug(`Skipping ${shortId}... (already scored epoch ${epoch})`);
       return 'skipped';
     }
 
@@ -221,8 +222,15 @@ export class ScoringScheduler {
       throw new Error(`Scoring returned null for ${shortId}...`);
     }
 
-    // Get previous score from DB (not chain — chain may not be updated yet)
-    const previousScore = (user as any).lastComputedScore ?? 0;
+    // Get previous score from on-chain cell (ground truth)
+    const { score: onChainScore, epoch: onChainEpoch } =
+      await this.getPreviousScoreAndEpoch(user);
+    const previousScore = onChainScore;
+
+    // Always keep DB in sync with what we computed
+    await this.databaseService.updateUserRecord(identity, {
+      lastComputedScore: scoringResult.score,
+    });
 
     // Skip proof generation and chain submission if score hasn't changed
     if (scoringResult.score === previousScore && previousScore > 0) {
@@ -258,8 +266,7 @@ export class ScoringScheduler {
     }
 
     // Only create notifications and update DB if chain submission succeeded
-    // OR if this is a first-time score (no previous on-chain score)
-    if (chainSubmitted || previousScore === 0) {
+    if (chainSubmitted) {
       await this.createScoringNotifications(
         identity,
         previousScore,
@@ -272,6 +279,16 @@ export class ScoringScheduler {
         lastScoredEpoch: epoch,
         lastComputedScore: scoringResult.score,
       });
+
+      // Record score history for the chart
+      const updatedOutpoint = await this.databaseService.getUserRecord(identity);
+      await this.scoreHistoryService.record(
+        identity,
+        onChainEpoch + 1,
+        scoringResult.score,
+        scoringResult.breakdown,
+        updatedOutpoint?.scoreCellOutpoint?.txHash ?? null,
+      );
     }
 
     const status = chainSubmitted ? 'confirmed' : 'scored_only';

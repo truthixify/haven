@@ -38,6 +38,20 @@ export interface TeeHealthStatus {
 }
 
 /**
+ * A single entry in a user's score history.
+ */
+export interface ScoreHistoryEntry {
+  epoch: number;
+  score: number;
+  privacy: number;
+  contribution: number;
+  humanity: number;
+  community: number;
+  txHash: string | null;
+  createdAt: string;
+}
+
+/**
  * A notification from the Haven TEE service.
  */
 export interface HavenNotification {

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useLeaderboard as useSdkLeaderboard } from '@haven-protocol/ckb-sdk/react';
-import type { LeaderboardEntry } from '@haven-protocol/ckb-sdk';
+import { useLeaderboard as useSdkLeaderboard } from '@haven-protocol-ckb/sdk/react';
+import type { LeaderboardEntry } from '@haven-protocol-ckb/sdk';
 import type { LeaderboardSortField, SortDirection } from '../types';
 
 const PAGE_SIZE = 25;

@@ -6,6 +6,7 @@ import configuration from './config/configuration';
 import { UserEntity } from './storage/entities/user.entity';
 import { ConnectionEntity } from './storage/entities/connection.entity';
 import { NotificationEntity } from './notifications/notification.entity';
+import { ScoreHistoryEntity } from './storage/entities/score-history.entity';
 import { StorageModule } from './storage/storage.module';
 import { AuthModule } from './auth/auth.module';
 import { IdentityModule } from './identity/identity.module';
@@ -58,7 +59,7 @@ const logger = new Logger('AppModule');
           database: config.get<string>('database.name', 'haven'),
           username: config.get<string>('database.user', 'haven'),
           password: config.get<string>('database.password', 'haven_tee_secret'),
-          entities: [UserEntity, ConnectionEntity, NotificationEntity],
+          entities: [UserEntity, ConnectionEntity, NotificationEntity, ScoreHistoryEntity],
           synchronize: true,
           // Retry connection on startup so the app doesn't crash
           // if Postgres takes a moment to start

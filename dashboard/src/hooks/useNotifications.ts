@@ -1,5 +1,5 @@
-import { useNotifications as useSdkNotifications } from '@haven-protocol/ckb-sdk/react';
-import type { HavenNotification } from '@haven-protocol/ckb-sdk/tee';
+import { useNotifications as useSdkNotifications } from '@haven-protocol-ckb/sdk/react';
+import type { HavenNotification } from '@haven-protocol-ckb/sdk/tee';
 import { useAuth } from './useAuth';
 
 export type { HavenNotification };

@@ -4,12 +4,12 @@
  * All Haven domain types (HavenScore, ScoreBreakdown, TierName,
  * LeaderboardEntry, etc.) are imported from the SDK:
  *
- *   import type { HavenScore, TierName } from '@haven-protocol/ckb-sdk';
+ *   import type { HavenScore, TierName } from '@haven-protocol-ckb/sdk';
  *
  * This file only contains types that are specific to the dashboard UI layer.
  */
 
-import type { ScoreBreakdown } from '@haven-protocol/ckb-sdk';
+import type { ScoreBreakdown } from '@haven-protocol-ckb/sdk';
 
 /** Score history point used for the dashboard chart. */
 export interface ScoreHistoryPoint {

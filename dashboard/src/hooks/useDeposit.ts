@@ -7,8 +7,8 @@ import {
   HAVEN_TYPE_SCRIPT_HASH_TYPE,
   SCORE_CELL_SIZE,
   serializeScoreCell,
-} from '@haven-protocol/ckb-sdk';
-import { HavenTeeClient } from '@haven-protocol/ckb-sdk/tee';
+} from '@haven-protocol-ckb/sdk';
+import { HavenTeeClient } from '@haven-protocol-ckb/sdk/tee';
 import type { DepositHistoryEntry } from '../types';
 import { config } from '../config';
 

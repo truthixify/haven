@@ -74,7 +74,7 @@ export const BREAKDOWN_OFFSETS = {
  * Placeholder — will be replaced with the deployed hash.
  */
 export const HAVEN_TYPE_SCRIPT_CODE_HASH =
-  '0x0000000000000000000000000000000000000000000000000000000000000001';
+  '0x134e98b02554060a248e337f63eb5a6136c379f41afad9f4bc023c0f3b52d715';
 
 /** Hash type for the Haven Score type script. */
 export const HAVEN_TYPE_SCRIPT_HASH_TYPE: 'type' = 'type';
@@ -94,7 +94,7 @@ export const HAVEN_REGISTRY_HASH_TYPE: 'type' = 'type';
  * Placeholder — will be replaced with the deployed hash.
  */
 export const HAVEN_LOCK_SCRIPT_CODE_HASH =
-  '0x0000000000000000000000000000000000000000000000000000000000000003';
+  '0x296b392e89ec260d8ddc81c3ade5f18bb1d9775f6f9a3885c0ea1fd81d11cf18';
 
 /** Hash type for the Haven lock script. */
 export const HAVEN_LOCK_SCRIPT_HASH_TYPE: 'type' = 'type';

@@ -10,11 +10,12 @@
   },
   "dependencies": {
     "@ckb-ccc/connector-react": "^1.0.34",
-    "@haven-protocol/ckb-sdk": "file:../sdk",
+    "@haven-protocol-ckb/sdk": "^0.1.1",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0"
+    "react-router-dom": "^6.28.0",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

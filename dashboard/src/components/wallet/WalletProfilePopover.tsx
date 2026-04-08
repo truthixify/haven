@@ -115,7 +115,7 @@ export default function WalletProfilePopover({
                   </button>
                 </div>
                 <p className="text-xs text-[#cbc3d7] font-['JetBrains_Mono'] opacity-60">
-                  Haven Protocol Node
+                  Haven Protocol User
                 </p>
               </div>
             </div>
