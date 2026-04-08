@@ -4,10 +4,13 @@
 
 FROM rust:1.93-bookworm AS builder
 
+RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copy manifests first for dependency caching
+# Copy manifests and vendored deps first for dependency caching
 COPY Cargo.toml Cargo.lock ./
+COPY vendor/ vendor/
 
 # Create dummy src to cache dependencies
 RUN mkdir -p src && echo "fn main() {}" > src/main.rs
