@@ -1,7 +1,7 @@
 [build]
 builder = "dockerfile"
 dockerfilePath = "proof-worker/Dockerfile"
-watchPatterns = ["proof-worker/**"]
+watchPatterns = ["proof-worker/**", "proof-worker/vendor/**"]
 
 [deploy]
 startCommand = "/app/proof-worker"

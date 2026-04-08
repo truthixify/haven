@@ -1,6 +1,9 @@
 # Haven Protocol - SP1 Proof Worker
 # Build: docker build -t haven-proof-worker .
 # Run: docker run --env-file .env haven-proof-worker
+#
+# Note: Railway builds from the repo root with dockerfilePath = "proof-worker/Dockerfile"
+# so all COPY paths are relative to the repo root.
 
 FROM rust:1.93-bookworm AS builder
 
@@ -9,15 +12,15 @@ RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/ap
 WORKDIR /app
 
 # Copy manifests and vendored deps first for dependency caching
-COPY Cargo.toml Cargo.lock ./
-COPY vendor/ vendor/
+COPY proof-worker/Cargo.toml proof-worker/Cargo.lock ./
+COPY proof-worker/vendor/ vendor/
 
 # Create dummy src to cache dependencies
 RUN mkdir -p src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release || true
 
 # Copy actual source
-COPY src/ src/
+COPY proof-worker/src/ src/
 
 # Build the real binary
 RUN touch src/main.rs && cargo build --release
