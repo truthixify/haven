@@ -170,8 +170,11 @@ export function useDeposit(): UseDepositReturn {
           args: havenLockArgs,
         };
 
-        // User identity = blake2b of the haven lock args (or just the user blake160 padded to 32 bytes)
-        const identityHex = '0x' + userHash.padEnd(64, '0');
+        // User identity = the TEE identity commitment (blake2b of pubkey)
+        // Must match what the TEE puts in SP1 public inputs
+        const identity = await signer.getIdentity();
+        const { identityCommitment: userIdentityCommitment } = await teeClient.getCommitment(identity);
+        const identityHex = '0x' + userIdentityCommitment.replace(/^0x/, '').padEnd(64, '0');
 
         // Build the initial 127-byte score cell data
         const initialData = serializeScoreCell({

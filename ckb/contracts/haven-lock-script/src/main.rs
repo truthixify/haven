@@ -18,15 +18,8 @@
 //!
 //! ## secp256k1 verification
 //!
-//! The lock script dynamically loads the CKB system secp256k1 shared
-//! library from a dep cell using `ckb_std::dynamic_loading_c_impl::CKBDLContext`.
-//! It then calls the C functions to recover the public key from the
-//! signature, Blake2b-160 hashes the result, and compares against the
-//! expected pubkey hash stored in lock args.
-//!
-//! The transaction must include two system dep cells:
-//!   1. The secp256k1 **code** cell (shared library ELF).
-//!   2. The secp256k1 **data** cell (1 048 576 bytes precomputed tables).
+//! Uses the `k256` crate (pure Rust, no_std) for ECDSA pubkey recovery.
+//! No dynamic loading or external dep cells required.
 //!
 //! ## Witness layout (WitnessArgs.lock)
 //!
@@ -50,17 +43,14 @@ use alloc::vec;
 use alloc::vec::Vec;
 use ckb_std::{
     ckb_constants::Source,
-    ckb_types::{core::ScriptHashType, prelude::*},
+    ckb_types::prelude::*,
     high_level::{
-        load_cell_data, load_input_since, load_script,
+        load_input_since, load_script,
         load_tx_hash, load_witness, load_witness_args,
     },
 };
-
-// CKBDLContext is only available on the riscv64 target with dlopen-c feature.
-#[cfg(target_arch = "riscv64")]
-use ckb_std::dynamic_loading_c_impl::{CKBDLContext, Symbol};
 use haven_types::{error, LOCK_ARGS_SIZE, PATH_TEE_UPDATE, PATH_USER_DIRECT, USER_WITNESS_SIZE};
+use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -68,50 +58,6 @@ use haven_types::{error, LOCK_ARGS_SIZE, PATH_TEE_UPDATE, PATH_USER_DIRECT, USER
 
 const SIGNATURE_SIZE: usize = 65;
 const HASH160_SIZE: usize = 20;
-const UNCOMPRESSED_PUBKEY_SIZE: usize = 65;
-const SECP256K1_DATA_SIZE: usize = 1_048_576;
-
-/// Code hash (data hash) of the bundled secp256k1 code cell.
-///
-/// **IMPORTANT**: This must match the secp256k1 code cell deployed on
-/// the target network (Pudge testnet or mainnet). The value below is a
-/// placeholder. Replace it with the actual data hash before deployment.
-///
-/// On CKB mainnet (Lina), the well-known secp256k1 code cell data hash is:
-///   0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8
-///
-/// On Pudge testnet it may differ. Check the genesis block cell info.
-const SECP256K1_CODE_HASH: [u8; 32] = [
-    0x9b, 0xd7, 0xe0, 0x6f, 0x3e, 0xcf, 0x4b, 0xe0,
-    0xf2, 0xfc, 0xd2, 0x18, 0x8b, 0x23, 0xf1, 0xb9,
-    0xfc, 0xc8, 0x8e, 0x5d, 0x4b, 0x65, 0xa8, 0x63,
-    0x7b, 0x17, 0x72, 0x3b, 0xbd, 0xa3, 0xcc, 0xe8,
-];
-
-/// Size of the dynamic loading context buffer (must be page-aligned).
-/// 512 KB is generous for the secp256k1 ELF.
-const DL_CONTEXT_SIZE: usize = 512 * 1024;
-
-// ---------------------------------------------------------------------------
-// C function type definitions for the secp256k1 library
-// ---------------------------------------------------------------------------
-
-/// Signature for `ckb_secp256k1_custom_verify_only_initialize`.
-/// Initializes the secp256k1 context using precomputed data.
-type InitFn = unsafe extern "C" fn(
-    context: *mut u8,       // secp256k1_context (opaque, ~200 bytes)
-    precomputed_data: *const u8,  // 1 MB precomputed tables
-);
-
-/// Signature for `ckb_secp256k1_custom_recover`.
-/// Recovers an uncompressed public key from a recoverable signature.
-/// Returns 0 on success.
-type RecoverFn = unsafe extern "C" fn(
-    context: *const u8,     // secp256k1_context
-    pubkey_output: *mut u8, // 65-byte uncompressed pubkey output
-    signature: *const u8,   // 65-byte: [rec_id(1) | r(32) | s(32)]
-    message: *const u8,     // 32-byte message hash
-) -> i32;
 
 // ---------------------------------------------------------------------------
 // Entry
@@ -242,10 +188,10 @@ fn build_sighash_all_message(lock_field_len: usize) -> Result<[u8; 32], i8> {
 }
 
 // ---------------------------------------------------------------------------
-// secp256k1 ECDSA verification via dynamic loading
+// secp256k1 ECDSA verification via k256 (pure Rust)
 // ---------------------------------------------------------------------------
 
-/// Recover pubkey via dynamic-loaded secp256k1, Blake2b-160 hash, compare.
+/// Recover pubkey via k256, compress, Blake2b-160 hash, compare.
 ///
 /// Signature format: `r (32) || s (32) || recovery_id (1)`.
 fn verify_secp256k1_blake160(
@@ -257,57 +203,26 @@ fn verify_secp256k1_blake160(
         return Err(error::INVALID_SIGNATURE);
     }
 
-    let rec_id = sig[64];
-    if rec_id > 3 {
-        return Err(error::INVALID_SIGNATURE);
-    }
-
-    // Load the secp256k1 precomputed data from dep cells (1 MB).
-    let secp_data = load_secp256k1_data()?;
-
-    // Dynamically load the secp256k1 code cell.
-    let mut context: CKBDLContext<[u8; DL_CONTEXT_SIZE]> = unsafe { CKBDLContext::new() };
-    let lib = context
-        .load_by(&SECP256K1_CODE_HASH, ScriptHashType::Data)
+    // Parse the 64-byte compact signature (r || s)
+    let signature = Signature::from_slice(&sig[..64])
         .map_err(|_| error::INVALID_SIGNATURE)?;
 
-    // Look up the C functions.
-    let init_fn: Symbol<InitFn> = unsafe { lib.get(b"ckb_secp256k1_custom_verify_only_initialize") }
-        .ok_or(error::INVALID_SIGNATURE)?;
-    let recover_fn: Symbol<RecoverFn> = unsafe { lib.get(b"ckb_secp256k1_custom_recover") }
+    // Parse recovery id (0-3)
+    let recid = RecoveryId::from_byte(sig[64])
         .ok_or(error::INVALID_SIGNATURE)?;
 
-    // Initialize the secp256k1 context with the precomputed data.
-    // The C context struct is opaque; 1024 bytes is more than enough.
-    let mut secp_ctx = [0u8; 1024];
-    unsafe {
-        (*init_fn)(secp_ctx.as_mut_ptr(), secp_data.as_ptr());
-    }
+    // Recover the public key from the prehashed message
+    let recovered_key = VerifyingKey::recover_from_prehash(msg.as_slice(), &signature, recid)
+        .map_err(|_| error::SECP_RECOVER_FAILED)?;
 
-    // Build the C-ABI signature: [rec_id (1) | r (32) | s (32)]
-    let mut sig_c = [0u8; SIGNATURE_SIZE];
-    sig_c[0] = rec_id;
-    sig_c[1..33].copy_from_slice(&sig[0..32]);
-    sig_c[33..65].copy_from_slice(&sig[32..64]);
+    // Get compressed public key (33 bytes: 02/03 || x)
+    let encoded = recovered_key.to_encoded_point(true);
+    let compressed = encoded.as_bytes();
 
-    // Recover the uncompressed public key.
-    let mut pubkey = [0u8; UNCOMPRESSED_PUBKEY_SIZE];
-    let ret = unsafe {
-        (*recover_fn)(
-            secp_ctx.as_ptr(),
-            pubkey.as_mut_ptr(),
-            sig_c.as_ptr(),
-            msg.as_ptr(),
-        )
-    };
-    if ret != 0 {
-        return Err(error::INVALID_SIGNATURE);
-    }
+    // Blake2b-160 of compressed pubkey
+    let hash = blake2b_160(compressed);
 
-    // Blake2b-160 of the recovered pubkey.
-    let hash = blake2b_160(&pubkey);
-
-    // Constant-time comparison.
+    // Constant-time comparison
     let mut diff: u8 = 0;
     let mut i = 0;
     while i < HASH160_SIZE {
@@ -319,21 +234,6 @@ fn verify_secp256k1_blake160(
     }
 
     Ok(())
-}
-
-/// Load the secp256k1 precomputed data (1 048 576 bytes) from cell deps.
-fn load_secp256k1_data() -> Result<Vec<u8>, i8> {
-    for i in 0.. {
-        match load_cell_data(i, Source::CellDep) {
-            Ok(data) => {
-                if data.len() == SECP256K1_DATA_SIZE {
-                    return Ok(data);
-                }
-            }
-            Err(_) => break,
-        }
-    }
-    Err(error::INVALID_SIGNATURE)
 }
 
 // ---------------------------------------------------------------------------
@@ -370,7 +270,6 @@ fn verify_type_script_on_output() -> Result<(), i8> {
             Err(_) => break,
         };
         if out_lock_hash == our_lock_hash {
-            // This output uses our lock. Check it has a type script.
             match load_cell_type_hash(i, Source::Output) {
                 Ok(Some(_)) => return Ok(()),
                 _ => return Err(error::TYPE_SCRIPT_MISSING),

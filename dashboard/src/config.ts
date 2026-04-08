@@ -6,7 +6,7 @@ export const config = {
   // Haven Type Script — deployed on CKB testnet
   havenTypeScriptCodeHash:
     import.meta.env.VITE_HAVEN_TYPE_SCRIPT_CODE_HASH ||
-    '0x1193537cffa570e905d47ce971a166720e07773f188bce6a1dafd2740e892a37',
+    '0x134e98b02554060a248e337f63eb5a6136c379f41afad9f4bc023c0f3b52d715',
   havenTypeScriptHashType:
     (import.meta.env.VITE_HAVEN_TYPE_SCRIPT_HASH_TYPE as 'type' | 'data' | 'data1' | 'data2') ||
     'type',
@@ -14,7 +14,7 @@ export const config = {
   // Cell dep for the Haven Type Script (the cell that contains the script binary)
   havenTypeScriptCellDepTxHash:
     import.meta.env.VITE_HAVEN_TYPE_SCRIPT_CELLDEP_TX_HASH ||
-    '0xdec5fba84ef56bcb3ee9f2db791183a7bfe8187dd462e8919a35348d4970448c',
+    '0x8d36b87574a794f5fbcb959dd42050bccae71c79c7cbe65d2379d20d81089305',
   havenTypeScriptCellDepIndex:
     Number(import.meta.env.VITE_HAVEN_TYPE_SCRIPT_CELLDEP_INDEX || '0'),
 
@@ -28,12 +28,12 @@ export const config = {
   // Haven Lock Script — dual-path lock (TEE update + user direct)
   havenLockScriptCodeHash:
     import.meta.env.VITE_HAVEN_LOCK_SCRIPT_CODE_HASH ||
-    '0x80cb3b10f5f2e9e4a034447be9240d0357e39cbde2e21b3a045d9f72739d4da5',
+    '0x296b392e89ec260d8ddc81c3ade5f18bb1d9775f6f9a3885c0ea1fd81d11cf18',
   havenLockScriptHashType:
     (import.meta.env.VITE_HAVEN_LOCK_SCRIPT_HASH_TYPE as 'type' | 'data') || 'type',
   havenLockScriptCellDepTxHash:
     import.meta.env.VITE_HAVEN_LOCK_SCRIPT_CELLDEP_TX_HASH ||
-    '0xe64d45b1ab83232793ca142c52b30c5ee4c52a045b0fd46645b66367ca412e76',
+    '0xc588c6351e62db3912a31520ba90840632f89bee8f74eea9d7cb2cb0498e65be',
   havenLockScriptCellDepIndex:
     Number(import.meta.env.VITE_HAVEN_LOCK_SCRIPT_CELLDEP_INDEX || '0'),
 

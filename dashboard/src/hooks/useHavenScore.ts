@@ -53,7 +53,10 @@ export function useHavenScore(): UseHavenScoreReturn {
         return;
       }
 
-      setIsLoading(true);
+      // Only show loading spinner on initial fetch, not on background refreshes
+      if (fetchCount === 0) {
+        setIsLoading(true);
+      }
       setError(null);
 
       try {
@@ -94,26 +97,8 @@ export function useHavenScore(): UseHavenScoreReturn {
             }
           }
 
-          // Also try searching by type script args (for backward compat)
-          if (!cellData) {
-            const typeScript = ccc.Script.from({
-              codeHash: config.havenTypeScriptCodeHash || HAVEN_TYPE_SCRIPT_CODE_HASH,
-              hashType: config.havenTypeScriptHashType || HAVEN_TYPE_SCRIPT_HASH_TYPE,
-              args: havenLockArgs,
-            });
-            const collector2 = client.findCellsByType(typeScript, true);
-            for await (const cell of collector2) {
-              const hex = String(cell.outputData);
-              const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
-              if (clean.length / 2 === SCORE_CELL_SIZE) {
-                cellData = new Uint8Array(clean.length / 2);
-                for (let i = 0; i < clean.length; i += 2) {
-                  cellData[i / 2] = parseInt(clean.substring(i, i + 2), 16);
-                }
-                break;
-              }
-            }
-          }
+          // Only search by current Haven lock — no type script fallback.
+          // Old score cells from previous lock deployments are ignored.
         } else {
           // Type script not deployed — search by lock for 127-byte cells
           const collector = signer.findCells(

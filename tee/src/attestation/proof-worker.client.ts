@@ -79,18 +79,21 @@ export class ProofWorkerClient {
 
     // Proof is already hex-encoded from the proof worker
     const proofBytes = proofHex;
+    const publicValues = (response.data?.public_values as string) || '';
 
     const result: SP1ProofResult = {
       proofBytes,
       proofHash: proofHash || this.hashProof(proofBytes),
       publicInputs,
       vkHash,
+      publicValues,
     };
 
     this.logger.log(
       `SP1 DCAP proof received: ${proofBytes.length / 2} bytes, ` +
         `hash=${result.proofHash.substring(0, 16)}..., ` +
         `vk_hash=${vkHash.substring(0, 16)}..., ` +
+        `journal=${publicValues.length / 2} bytes, ` +
         `program_id=${response.data?.program_id || 'unknown'}`,
     );
 

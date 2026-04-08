@@ -204,7 +204,7 @@ export function buildUpdatedScoreCellData(
   return {
     version: SCORE_CELL_VERSION,
     score,
-    epoch,
+    epoch: previous.epoch + 1, // Type script requires epoch = input_epoch + 1
     userIdentity: previous.userIdentity, // Preserved - cannot change
     programHash,
     proofHash,

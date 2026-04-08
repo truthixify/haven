@@ -25,40 +25,44 @@ pub mod error {
     pub const REGISTRY_NOT_FOUND: i8 = 10;
     /// SP1 proof verification failed.
     pub const PROOF_VERIFICATION_FAILED: i8 = 11;
+    /// Failed to serialize public inputs for proof verification.
+    pub const PUBLIC_INPUTS_SERIALIZE_FAILED: i8 = 12;
+    /// VK hash could not be converted to UTF-8 hex string.
+    pub const VK_HASH_ENCODING_FAILED: i8 = 13;
     /// Program hash in proof does not match registry (current or previous).
-    pub const PROGRAM_HASH_MISMATCH: i8 = 12;
+    pub const PROGRAM_HASH_MISMATCH: i8 = 14;
     /// User identity changed between input and output cells.
-    pub const IDENTITY_CHANGED: i8 = 13;
+    pub const IDENTITY_CHANGED: i8 = 15;
     /// Epoch did not increment correctly.
-    pub const INVALID_EPOCH: i8 = 14;
+    pub const INVALID_EPOCH: i8 = 16;
     /// Deposit balance change does not match the per-update fee.
-    pub const INVALID_FEE_DEDUCTION: i8 = 15;
+    pub const INVALID_FEE_DEDUCTION: i8 = 17;
     /// Initial score must be zero.
-    pub const INITIAL_SCORE_NOT_ZERO: i8 = 16;
+    pub const INITIAL_SCORE_NOT_ZERO: i8 = 18;
     /// Deposit below minimum required.
-    pub const DEPOSIT_BELOW_MINIMUM: i8 = 17;
+    pub const DEPOSIT_BELOW_MINIMUM: i8 = 19;
     /// Expires_at field is set incorrectly.
-    pub const INVALID_EXPIRY: i8 = 18;
+    pub const INVALID_EXPIRY: i8 = 20;
     /// Public inputs from proof do not match cell state.
-    pub const PUBLIC_INPUTS_MISMATCH: i8 = 19;
+    pub const PUBLIC_INPUTS_MISMATCH: i8 = 21;
     /// Witness data is missing or malformed.
-    pub const INVALID_WITNESS: i8 = 20;
+    pub const INVALID_WITNESS: i8 = 22;
     /// Component breakdown score exceeds maximum (250 per component).
-    pub const BREAKDOWN_OUT_OF_RANGE: i8 = 21;
+    pub const BREAKDOWN_OUT_OF_RANGE: i8 = 23;
     /// Breakdown scores do not sum to total score.
-    pub const BREAKDOWN_SUM_MISMATCH: i8 = 22;
+    pub const BREAKDOWN_SUM_MISMATCH: i8 = 24;
 
     // -- Lock script errors --------------------------------------------------
-    /// Signature verification failed (user path).
+    /// Signature verification failed (blake160 mismatch).
     pub const INVALID_SIGNATURE: i8 = 30;
     /// Lock args length is invalid.
     pub const INVALID_LOCK_ARGS: i8 = 31;
     /// TEE path: type script not present on output cell.
     pub const TYPE_SCRIPT_MISSING: i8 = 32;
-    /// TEE path: TEE signature invalid.
-    pub const INVALID_TEE_SIGNATURE: i8 = 33;
     /// Witness path flag is invalid.
-    pub const INVALID_PATH_FLAG: i8 = 34;
+    pub const INVALID_PATH_FLAG: i8 = 33;
+    /// secp256k1 pubkey recovery failed (bad signature or message).
+    pub const SECP_RECOVER_FAILED: i8 = 34;
 }
 
 // ---------------------------------------------------------------------------

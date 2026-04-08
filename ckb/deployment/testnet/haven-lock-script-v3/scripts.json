@@ -1,0 +1,21 @@
+{
+  "devnet": {},
+  "testnet": {
+    "haven-lock-script": {
+      "codeHash": "0xe6b8667b244adbb7438b92ebbcfd7a0cfdbb125d4d988bca1ea78aa104d50ea9",
+      "hashType": "type",
+      "cellDeps": [
+        {
+          "cellDep": {
+            "outPoint": {
+              "txHash": "0xcacc66d46a4bfa23f79449309fcf9dc7f8486fe95c7ebefd3df03e1730c98657",
+              "index": 0
+            },
+            "depType": "code"
+          }
+        }
+      ]
+    }
+  },
+  "mainnet": {}
+}

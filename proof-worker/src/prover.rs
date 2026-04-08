@@ -11,13 +11,11 @@ use alloy::providers::ProviderBuilder;
 use automata_dcap_utils::Version;
 use automata_dcap_zkvm::{
     prepare_guest_input,
-    sp1::{Sp1Config, Sp1Prover},
+    sp1::{Sp1Config, Sp1Prover, ProofSystem},
     ZkVmProver,
 };
 use blake2b_rs::Blake2bBuilder;
 use tracing::info;
-
-pub use automata_dcap_zkvm::sp1::{NetworkProverMode, ProofSystem};
 
 /// Output from DCAP proof generation.
 #[derive(Debug)]
@@ -43,8 +41,6 @@ pub struct ProofConfig {
     pub sp1_private_key: String,
     /// Proof system to use (Plonk for CKB on-chain verification).
     pub proof_system: ProofSystem,
-    /// Network prover mode.
-    pub network_mode: NetworkProverMode,
     /// RPC URL for fetching collaterals from on-chain PCCS.
     pub rpc_url: String,
 }
@@ -62,15 +58,6 @@ impl ProofConfig {
             {
                 "groth16" => ProofSystem::Groth16,
                 _ => ProofSystem::Plonk,
-            },
-            network_mode: match std::env::var("DCAP_NETWORK_MODE")
-                .unwrap_or_else(|_| "auction".to_string())
-                .to_lowercase()
-                .as_str()
-            {
-                "hosted" => NetworkProverMode::Hosted,
-                "reserved" => NetworkProverMode::Reserved,
-                _ => NetworkProverMode::Auction,
             },
             rpc_url: std::env::var("AUTOMATA_RPC_URL")
                 .or_else(|_| std::env::var("RPC_URL"))
@@ -144,7 +131,6 @@ pub async fn generate_proof(
     // Configure SP1 proving
     let sp1_config = Sp1Config {
         proof_system: config.proof_system,
-        network_mode: config.network_mode,
         private_key: config.sp1_private_key.clone(),
         rpc_url: Some(config.rpc_url.clone()),
     };
@@ -152,7 +138,6 @@ pub async fn generate_proof(
     // Generate proof via SP1 Network
     info!(
         proof_system = ?config.proof_system,
-        network_mode = ?config.network_mode,
         "Generating DCAP proof via SP1 Network (this may take several minutes)..."
     );
 

@@ -309,7 +309,7 @@ export class ScoringScheduler {
       identityCommitment: identity,
       previousScore,
       newScore: scoringResult.score,
-      epoch,
+      epoch: prevEpoch + 1, // Type script requires epoch = input_epoch + 1
       privacyScore: scoringResult.breakdown.privacy,
       contributionScore: scoringResult.breakdown.contribution,
       humanityScore: scoringResult.breakdown.humanity,

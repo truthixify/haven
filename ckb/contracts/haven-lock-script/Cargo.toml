@@ -7,8 +7,9 @@ description = "Haven Protocol lock script: dual-path TEE update + user ownership
 
 [dependencies]
 haven-types = { workspace = true }
-ckb-std = { version = "1.1", default-features = true, features = ["dlopen-c"] }
+ckb-std = { version = "1.1", default-features = true }
 ckb-hash = { version = "1.1", default-features = false, features = ["ckb-contract"] }
+k256 = { version = "0.13.4", default-features = false, features = ["ecdsa"] }
 
 [features]
 library = []

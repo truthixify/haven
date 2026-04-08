@@ -1,21 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
-/**
- * Haven Protocol - Phala TEE Service
- *
- * This is the entry point for the Haven TEE NestJS service.
- * In production, this runs inside a Phala Network Intel TDX enclave.
- *
- * The TEE service is the ONLY component that handles sensitive data:
- * - OAuth tokens (Twitter, GitHub)
- * - Account linkages
- * - Raw activity data
- *
- * All sensitive data is stored in PostgreSQL running locally inside the TEE.
- * The TEE hardware protects the environment — no application-level encryption needed.
- */
 async function bootstrap(): Promise<void> {
   const logger = new Logger('HavenTEE');
 
@@ -25,21 +12,43 @@ async function bootstrap(): Promise<void> {
 
   // CORS: Allow dashboard to communicate with TEE
   app.enableCors({
-    origin: true, // Allow all origins in development
-    methods: ['GET', 'POST', 'OPTIONS'],
+    origin: true,
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-Haven-Identity'],
   });
 
   // Global prefix for all routes
   app.setGlobalPrefix('api');
 
+  // Swagger / OpenAPI documentation
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Haven Protocol TEE API')
+    .setDescription(
+      'Phala TEE service for Haven Protocol. Handles identity registration, ' +
+      'OAuth account linking, score computation, DCAP attestation, ' +
+      'SP1 proof requests, and CKB transaction submission.',
+    )
+    .setVersion('0.1.0')
+    .addApiKey(
+      { type: 'apiKey', name: 'X-Haven-Identity', in: 'header' },
+      'identity',
+    )
+    .addTag('Health', 'TEE runtime status')
+    .addTag('Identity', 'CKB wallet verification and identity management')
+    .addTag('Auth', 'OAuth account linking (Twitter, GitHub)')
+    .addTag('Notifications', 'User notification management')
+    .addTag('Admin', 'Admin operations (testing only)')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document);
+
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
   logger.log(`Haven TEE Service running on port ${port}`);
+  logger.log(`Swagger docs: http://localhost:${port}/docs`);
   logger.log(`Network: ${process.env.CKB_NETWORK || 'testnet'}`);
-  logger.log(`Database: PostgreSQL @ ${process.env.DATABASE_HOST || 'localhost'}:${process.env.DATABASE_PORT || '5432'}/${process.env.DATABASE_NAME || 'haven'}`);
-  logger.log('Scoring scheduler: active');
 }
 
 bootstrap();

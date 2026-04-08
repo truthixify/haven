@@ -14,6 +14,7 @@ import { AttestationModule } from './attestation/attestation.module';
 import { ChainModule } from './chain/chain.module';
 import { NotificationModule } from './notifications/notification.module';
 import { HealthModule } from './health/health.module';
+import { AdminModule } from './admin/admin.module';
 
 const logger = new Logger('AppModule');
 
@@ -93,6 +94,9 @@ const logger = new Logger('AppModule');
 
     // Health / status endpoint
     HealthModule,
+
+    // Admin operations (testing only — remove before production)
+    AdminModule,
   ],
 })
 export class AppModule {}

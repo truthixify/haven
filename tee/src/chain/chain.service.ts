@@ -17,10 +17,7 @@ import {
   hexToCellData,
 } from './cell-builder';
 import { RegistryService } from './registry.service';
-import {
-  DEFAULT_UPDATE_FEE,
-  SCORE_EXPIRY_BLOCKS,
-} from '../common/constants';
+import { DEFAULT_UPDATE_FEE } from '../common/constants';
 
 /**
  * Chain Service
@@ -78,6 +75,13 @@ export class ChainService implements OnModuleInit {
       : new ccc.ClientPublicTestnet();
     this.cccSigner = new ccc.SignerCkbPrivateKey(this.cccClient, this.teeSigningKey);
 
+    // Log TEE signer identity for verification against lock args
+    this.cccSigner.getRecommendedAddressObj().then((addr) => {
+      const lockArgs = addr.script.args;
+      this.logger.log(`TEE signer blake160: ${lockArgs}`);
+      this.logger.log(`TEE signer address: ${addr.toString()}`);
+    }).catch(() => {});
+
     this.logger.log(`Chain service initialized for ${this.network}`);
   }
 
@@ -116,8 +120,9 @@ export class ChainService implements OnModuleInit {
       // 2. Get current block number for timestamps
       const tipBlockNumber = await this.registryService.getTipBlockNumber();
 
-      // 3. Get update fee from registry
+      // 3. Get update fee and epoch duration from on-chain registry
       const updateFee = await this.registryService.getUpdateFee();
+      const epochDuration = await this.registryService.getEpochDurationBlocks();
 
       // 4. Compute proof hash
       const proofHashBuf = Buffer.from(proof.proofHash, 'hex');
@@ -131,7 +136,7 @@ export class ChainService implements OnModuleInit {
         programHash,
         proofHashBuf,
         tipBlockNumber,
-        SCORE_EXPIRY_BLOCKS,
+        epochDuration,
         updateFee,
       );
 
@@ -147,6 +152,7 @@ export class ChainService implements OnModuleInit {
         updateFee,
         proof.publicInputs,
         proof.vkHash,
+        proof.publicValues,
       );
 
       if (txHash) {
@@ -225,11 +231,20 @@ export class ChainService implements OnModuleInit {
   // -----------------------------------------------------------------------
 
   /**
-   * Build and submit a raw transaction to CKB.
+   * Build and submit a score update transaction to CKB.
    *
-   * This is a low-level implementation used before the full CCC
-   * integration. In production, the CCC transaction builder (shown
-   * in the submitScoreUpdate comments) handles all of this automatically.
+   * Transaction layout:
+   *   Input  0: Score cell (Haven lock)
+   *   Input  1+: Fee cells (secp256k1_blake160, owned by TEE signer)
+   *   Output 0: Updated score cell (same lock + type as input)
+   *   Output 1+: Change cell(s)
+   *
+   * Witness layout (molecule WitnessArgs):
+   *   witness[0].lock      = [0x00 (TEE path) | tee_signature(65)]
+   *   witness[0].inputType = [path_flag | public_inputs | vk_hash | proof_len | proof]
+   *   witness[1].lock      = secp256k1 signature for fee cell
+   *
+   * Cell deps: Haven lock, Haven type, Registry, secp256k1 system scripts
    */
   private async buildAndSubmitTransaction(
     inputOutpoint: CellOutpoint,
@@ -238,89 +253,189 @@ export class ChainService implements OnModuleInit {
     _updateFee: bigint,
     publicInputs: SP1PublicInputs,
     vkHash: string,
+    publicValues: string,
   ): Promise<string | null> {
     try {
-      // Build the TEE witness
-      const witnessHex = buildTeeWitness(publicInputs, vkHash, proofBytesHex);
+      // === 1. Build TEE proof data (for WitnessArgs.inputType) ===
+      const teeProofHex = buildTeeProofData(publicInputs, vkHash, proofBytesHex, publicValues);
 
-      // Fetch the input cell to copy its output
-      const inputCells = await this.cccClient.getTransaction(inputOutpoint.txHash);
-      if (!inputCells) throw new Error('Could not fetch input transaction');
+      // === 2. Build WitnessArgs for witness[0] with signature placeholder ===
+      // Lock: [path_flag(1) | zeros(65)] = 66 bytes (signature filled later)
+      // inputType: TEE proof data (read by the Haven type script)
+      const lockPlaceholder = Buffer.alloc(66);
+      lockPlaceholder[0] = 0x00; // TEE update path flag
+      const witness0 = ccc.WitnessArgs.from({
+        lock: ('0x' + lockPlaceholder.toString('hex')) as `0x${string}`,
+        inputType: teeProofHex as `0x${string}`,
+      });
+      const witness0Hex = ('0x' + Buffer.from(witness0.toBytes()).toString('hex')) as `0x${string}`;
 
-      const inputCellOutput = inputCells.transaction.outputs[inputOutpoint.index];
-      if (!inputCellOutput) throw new Error('Input cell not found');
+      // === 3. Fetch the input cell ===
+      const inputTx = await this.cccClient.getTransaction(inputOutpoint.txHash);
+      if (!inputTx) throw new Error('Could not fetch input transaction');
+      const inputCellOutput = inputTx.transaction.outputs[inputOutpoint.index];
+      if (!inputCellOutput) throw new Error('Input cell not found at specified index');
 
-      // Get the signer's address for the change cell
-      const signerAddress = await this.cccSigner.getRecommendedAddressObj();
+      // Verify TEE key matches the lock args
+      const lockArgs = inputCellOutput.lock.args.replace(/^0x/, '');
+      const teePubkeyHashInLock = lockArgs.substring(40, 80); // bytes 20-39
+      const signerAddr = await this.cccSigner.getRecommendedAddressObj();
+      const signerBlake160 = signerAddr.script.args.replace(/^0x/, '');
+      if (teePubkeyHashInLock !== signerBlake160) {
+        throw new Error(
+          `TEE key mismatch: lock args tee_hash=${teePubkeyHashInLock}, signer blake160=${signerBlake160}`,
+        );
+      }
 
-      // Build all required cell deps
+      // Ensure the output cell has a type script (Haven lock verifies this)
+      if (!inputCellOutput.type) {
+        const typeCodeHash = this.config.get<string>('haven.typeScriptCodeHash') || '';
+        const typeHashType = this.config.get<string>('haven.typeScriptHashType') || 'type';
+        if (!typeCodeHash) throw new Error('Score cell has no type script and HAVEN_TYPE_SCRIPT_CODE_HASH is not configured');
+        inputCellOutput.type = ccc.Script.from({
+          codeHash: typeCodeHash,
+          hashType: typeHashType,
+          args: inputCellOutput.lock.args,
+        });
+      }
+
+      // === 4. Build cell deps (fail-fast if any is missing) ===
       const allCellDeps: ccc.CellDepLike[] = [];
 
-      // 1. Haven lock script cell dep (for the score cell's lock)
-      const lockScriptCellDepTx = this.config.get<string>('haven.lockScriptCellDepTxHash') || '';
-      if (lockScriptCellDepTx) {
-        allCellDeps.push({
-          outPoint: { txHash: lockScriptCellDepTx, index: 0 },
-          depType: 'code',
-        });
-      }
+      const lockCellDepTx = this.config.get<string>('haven.lockScriptCellDepTxHash') || '';
+      if (!lockCellDepTx) throw new Error('HAVEN_LOCK_SCRIPT_CELLDEP_TX_HASH is not configured');
+      allCellDeps.push({ outPoint: { txHash: lockCellDepTx, index: 0 }, depType: 'code' });
 
-      // 2. Haven type script cell dep
-      const typeScriptCellDepTx = this.config.get<string>('haven.typeScriptCellDepTxHash') || '';
-      if (typeScriptCellDepTx) {
-        allCellDeps.push({
-          outPoint: { txHash: typeScriptCellDepTx, index: 0 },
-          depType: 'code',
-        });
-      }
+      const typeCellDepTx = this.config.get<string>('haven.typeScriptCellDepTxHash') || '';
+      if (!typeCellDepTx) throw new Error('HAVEN_TYPE_SCRIPT_CELLDEP_TX_HASH is not configured');
+      allCellDeps.push({ outPoint: { txHash: typeCellDepTx, index: 0 }, depType: 'code' });
 
-      // 3. Registry cell dep
       const registryTxHash = this.config.get<string>('haven.registryTxHash') || '';
-      if (registryTxHash) {
-        allCellDeps.push({
-          outPoint: { txHash: registryTxHash, index: 0 },
-          depType: 'code',
-        });
-      }
+      if (!registryTxHash) throw new Error('HAVEN_REGISTRY_TX_HASH is not configured');
+      allCellDeps.push({ outPoint: { txHash: registryTxHash, index: 0 }, depType: 'code' });
 
-      // 4. secp256k1 cell dep (for the TEE signer's fee cell)
-      try {
-        const secp = await this.cccClient.getKnownScript(ccc.KnownScript.Secp256k1Blake160);
-        for (const dep of secp.cellDeps) {
-          allCellDeps.push(dep.cellDep);
-        }
-      } catch {}
+      // secp256k1 cell deps added by prepareTransaction below
 
-      this.logger.debug(`Cell deps: ${allCellDeps.length} total`);
-
-      // Build the transaction
+      // === 5. Build the transaction ===
       const tx = ccc.Transaction.from({
         cellDeps: allCellDeps,
-        inputs: [
-          {
-            previousOutput: {
-              txHash: inputOutpoint.txHash,
-              index: inputOutpoint.index,
-            },
+        inputs: [{
+          previousOutput: {
+            txHash: inputOutpoint.txHash,
+            index: inputOutpoint.index,
           },
-        ],
+        }],
         outputs: [inputCellOutput],
         outputsData: [outputDataHex as `0x${string}`],
-        witnesses: [witnessHex],
+        witnesses: [witness0Hex],
       });
 
-      // Let CCC add fee-paying inputs and calculate fees
+      // === 6. Let CCC add fee-paying inputs and calculate fees ===
       await tx.completeInputsByCapacity(this.cccSigner);
       await tx.completeFeeBy(this.cccSigner, 1000);
 
-      // Ensure our witness for input 0 wasn't overwritten by CCC
-      if (tx.witnesses.length > 0) {
-        tx.witnesses[0] = witnessHex as `0x${string}`;
+      // === 7. Let CCC add secp256k1 cell deps and prepare fee cell witness ===
+      // prepareTransaction adds the secp256k1 dep group (code + data cells)
+      // and sets up the fee cell witness placeholder. It does NOT touch
+      // witness[0] because the Haven lock doesn't match the signer's script.
+      const preparedTx = await this.cccSigner.prepareTransaction(tx);
+
+      // Restore witness[0] on the prepared copy
+      preparedTx.witnesses[0] = witness0Hex;
+
+      // === 8. Compute Haven lock sighash manually ===
+      // Replicate the exact on-chain algorithm from build_sighash_all_message()
+      // Use preparedTx from here (has secp256k1 cell deps added by CCC)
+      const txRawHash = preparedTx.hash();
+      const txHashBytes = Buffer.from(txRawHash.replace(/^0x/, ''), 'hex');
+
+      // Build zeroed WitnessArgs: lock = 66 zero bytes, inputType = teeProof
+      const zeroedWa = ccc.WitnessArgs.from({
+        lock: ('0x' + Buffer.alloc(66).toString('hex')) as `0x${string}`,
+        inputType: teeProofHex as `0x${string}`,
+      });
+      const zeroedWaBytes = Buffer.from(zeroedWa.toBytes());
+
+      const hasher = blake2b(32, null, null, Buffer.from('ckb-default-hash'));
+      hasher.update(txHashBytes);
+      const lenBuf = Buffer.alloc(8);
+      lenBuf.writeBigUInt64LE(BigInt(zeroedWaBytes.length));
+      hasher.update(lenBuf);
+      hasher.update(zeroedWaBytes);
+
+      // Extra witnesses beyond input count
+      for (let i = preparedTx.inputs.length; i < preparedTx.witnesses.length; i++) {
+        const wb = Buffer.from(preparedTx.witnesses[i].replace(/^0x/, ''), 'hex');
+        const wl = Buffer.alloc(8);
+        wl.writeBigUInt64LE(BigInt(wb.length));
+        hasher.update(wl);
+        hasher.update(wb);
       }
 
-      const txHash = await this.cccSigner.sendTransaction(tx);
+      const sighash = Buffer.from(hasher.digest() as Uint8Array);
+      const sighashHex = '0x' + sighash.toString('hex');
 
-      this.logger.log(`Transaction submitted: ${txHash}`);
+      // === 9. Sign sighash with TEE private key ===
+      const teeSigHex: string = await (this.cccSigner as any)._signMessage(sighashHex);
+      const teeSigBytes = Buffer.from(teeSigHex.replace(/^0x/, ''), 'hex');
+
+      // === 10. Build final witness[0] with real TEE signature ===
+      const finalLock = Buffer.alloc(66);
+      finalLock[0] = 0x00;
+      teeSigBytes.copy(finalLock, 1);
+
+      const finalWitness0 = ccc.WitnessArgs.from({
+        lock: ('0x' + finalLock.toString('hex')) as `0x${string}`,
+        inputType: teeProofHex as `0x${string}`,
+      });
+      preparedTx.setWitnessArgsAt(0, finalWitness0);
+
+      // === 11. Sign secp256k1 fee cell witness manually (same key, different sighash) ===
+      // Compute the secp256k1 group sighash: hash(tx_hash || zeroed_witness[feePos])
+      // The secp256k1 group does NOT include witness[0] (different lock group).
+      for (let fi = 1; fi < preparedTx.inputs.length; fi++) {
+        const feeInput = preparedTx.inputs[fi];
+        await feeInput.completeExtraInfos(this.cccClient);
+        if (!feeInput.cellOutput) continue;
+
+        // Get the existing WitnessArgs at this position (set by prepareTransaction with lock=zeros(65))
+        const feeWa = preparedTx.getWitnessArgsAt(fi);
+        if (!feeWa) continue;
+
+        // The zeroed version already has lock=zeros(65) (from prepareTransaction)
+        const feeWaBytes = Buffer.from(preparedTx.witnesses[fi].replace(/^0x/, ''), 'hex');
+
+        // Compute secp256k1 sighash for this group
+        const feeHasher = blake2b(32, null, null, Buffer.from('ckb-default-hash'));
+        feeHasher.update(txHashBytes); // same tx_hash
+        const feeLenBuf = Buffer.alloc(8);
+        feeLenBuf.writeBigUInt64LE(BigInt(feeWaBytes.length));
+        feeHasher.update(feeLenBuf);
+        feeHasher.update(feeWaBytes);
+
+        // Extra witnesses beyond input count (shared across all groups)
+        for (let ei = preparedTx.inputs.length; ei < preparedTx.witnesses.length; ei++) {
+          const ew = Buffer.from(preparedTx.witnesses[ei].replace(/^0x/, ''), 'hex');
+          const ewl = Buffer.alloc(8);
+          ewl.writeBigUInt64LE(BigInt(ew.length));
+          feeHasher.update(ewl);
+          feeHasher.update(ew);
+        }
+
+        const feeSighash = Buffer.from(feeHasher.digest() as Uint8Array);
+        const feeSigHex: string = await (this.cccSigner as any)._signMessage('0x' + feeSighash.toString('hex'));
+        const feeSigBytes = Buffer.from(feeSigHex.replace(/^0x/, ''), 'hex');
+
+        // Set the secp256k1 signature in witness
+        const signedFeeWa = ccc.WitnessArgs.from({
+          lock: ('0x' + feeSigBytes.toString('hex')) as `0x${string}`,
+        });
+        preparedTx.setWitnessArgsAt(fi, signedFeeWa);
+        break; // only sign the first fee cell in the group
+      }
+
+      // === 12. Submit directly (no signOnlyTransaction) ===
+      const txHash = await this.cccClient.sendTransaction(preparedTx);
       return txHash;
     } catch (error) {
       this.logger.error('Transaction build/submit failed:', error);
@@ -334,60 +449,69 @@ export class ChainService implements OnModuleInit {
 // ---------------------------------------------------------------------------
 
 /**
- * Build the TEE update witness with the layout expected by the Haven type script:
+ * Build the TEE proof data for WitnessArgs.inputType.
  *
- *   [0]         = path_flag (0x00 for TEE update)
- *   [1..85]     = public_inputs (84 bytes, little-endian)
- *   [85..117]   = vk_hash (32 bytes)
- *   [117..121]  = proof_len (u32 LE)
- *   [121..]     = proof bytes
+ * Layout:
+ *   [0]                          = path_flag (0x00 for TEE update)
+ *   [1..85]                      = public_inputs (84 bytes, little-endian)
+ *   [85..117]                    = vk_hash (32 bytes)
+ *   [117..121]                   = proof_len (u32 LE)
+ *   [121..121+proof_len]         = proof bytes
+ *   [121+proof_len..+4]          = journal_len (u32 LE)
+ *   [121+proof_len+4..]          = journal bytes (SP1 public values)
  */
-function buildTeeWitness(
+function buildTeeProofData(
   publicInputs: SP1PublicInputs,
   vkHash: string,
   proofBytesHex: string,
+  publicValuesHex: string,
 ): string {
-  const proofBuf = Buffer.from(proofBytesHex, 'hex');
-  const totalLen = 1 + 84 + 32 + 4 + proofBuf.length;
-  const witness = Buffer.alloc(totalLen);
+  const proofBuf = Buffer.from(proofBytesHex.replace(/^0x/, ''), 'hex');
+  const journalBuf = Buffer.from(publicValuesHex.replace(/^0x/, ''), 'hex');
+  const totalLen = 1 + 84 + 32 + 4 + proofBuf.length + 4 + journalBuf.length;
+  const data = Buffer.alloc(totalLen);
   let offset = 0;
 
   // path flag
-  witness.writeUInt8(0x00, offset);
+  data.writeUInt8(0x00, offset);
   offset += 1;
 
   // public inputs (84 bytes, little-endian)
-  Buffer.from(publicInputs.programHash, 'hex').copy(witness, offset);
+  Buffer.from(publicInputs.programHash.replace(/^0x/, ''), 'hex').copy(data, offset);
   offset += 32;
-  Buffer.from(publicInputs.identityCommitment, 'hex').copy(witness, offset);
+  Buffer.from(publicInputs.identityCommitment.replace(/^0x/, ''), 'hex').copy(data, offset);
   offset += 32;
-  witness.writeUInt16LE(publicInputs.previousScore, offset);
+  data.writeUInt16LE(publicInputs.previousScore, offset);
   offset += 2;
-  witness.writeUInt16LE(publicInputs.newScore, offset);
+  data.writeUInt16LE(publicInputs.newScore, offset);
   offset += 2;
-  witness.writeUInt32LE(publicInputs.epoch, offset);
+  data.writeUInt32LE(publicInputs.epoch, offset);
   offset += 4;
-  witness.writeUInt16LE(publicInputs.privacyScore, offset);
+  data.writeUInt16LE(publicInputs.privacyScore, offset);
   offset += 2;
-  witness.writeUInt16LE(publicInputs.contributionScore, offset);
+  data.writeUInt16LE(publicInputs.contributionScore, offset);
   offset += 2;
-  witness.writeUInt16LE(publicInputs.humanityScore, offset);
+  data.writeUInt16LE(publicInputs.humanityScore, offset);
   offset += 2;
-  witness.writeUInt16LE(publicInputs.communityScore, offset);
+  data.writeUInt16LE(publicInputs.communityScore, offset);
   offset += 2;
-  witness.writeUInt32LE(publicInputs.prevEpoch, offset);
+  data.writeUInt32LE(publicInputs.prevEpoch, offset);
   offset += 4;
 
   // vk_hash (32 bytes)
-  Buffer.from(vkHash, 'hex').copy(witness, offset);
+  Buffer.from(vkHash.replace(/^0x/, ''), 'hex').copy(data, offset);
   offset += 32;
 
-  // proof_len (u32 LE)
-  witness.writeUInt32LE(proofBuf.length, offset);
+  // proof_len (u32 LE) + proof bytes
+  data.writeUInt32LE(proofBuf.length, offset);
   offset += 4;
+  proofBuf.copy(data, offset);
+  offset += proofBuf.length;
 
-  // proof bytes
-  proofBuf.copy(witness, offset);
+  // journal_len (u32 LE) + journal bytes
+  data.writeUInt32LE(journalBuf.length, offset);
+  offset += 4;
+  journalBuf.copy(data, offset);
 
-  return '0x' + witness.toString('hex');
+  return '0x' + data.toString('hex');
 }

@@ -1,0 +1,99 @@
+use anyhow::{Context, Result};
+use async_trait::async_trait;
+use sp1_sdk::{
+    prover::{Prover, ProvingKey as ProvingKeyTrait},
+    HashableKey, ProverClient, SP1Stdin, SP1_CIRCUIT_VERSION, Elf,
+};
+
+use crate::{common::{ZkVmProver, ZkVm}, get_elf, Version};
+use super::{config::Sp1Config, proving::prove};
+
+/// SP1 zkVM prover implementation
+pub struct Sp1Prover {
+    /// The ELF binary for the guest program
+    elf: &'static [u8],
+}
+
+#[async_trait]
+impl ZkVmProver for Sp1Prover {
+    type Config = Sp1Config;
+
+    fn new(version: Version) -> Result<Self> {
+        let elf = get_elf(version, ZkVm::Sp1)?;
+        Ok(Self { elf })
+    }
+
+    async fn prove(&self, config: &Self::Config, input_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
+        // Setup stdin
+        let mut stdin = SP1Stdin::new();
+        stdin.write_slice(input_bytes);
+
+        // Check if DEV_MODE is set - if so, skip proving
+        if std::env::var("DEV_MODE").is_ok() {
+            log::info!("DEV_MODE detected - skipping proof generation");
+
+            // Use mock prover to execute and get journal
+            let client = ProverClient::builder().mock().build().await;
+            let (journal, report) = client
+                .execute(Elf::Static(self.elf), stdin.clone())
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+            log::info!(
+                "executed program with {} cycles",
+                report.total_instruction_count()
+            );
+            return Ok((journal.to_vec(), vec![]));
+        }
+
+        println!("Begin proving with proof system: {:?}", config.proof_system);
+
+        // Set up SP1 environment variables
+        std::env::set_var("SP1_PROVER", "network");
+
+        // Get private key from config or environment
+        let sp1_network_key = config.private_key.as_str();
+        std::env::set_var("NETWORK_PRIVATE_KEY", sp1_network_key);
+
+        // Create prover client from environment
+        let client = ProverClient::from_env().await;
+
+        // Setup: get proving key (verifying key is accessed via pk.verifying_key())
+        let pk = client.setup(Elf::Static(self.elf)).await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        let vk = pk.verifying_key();
+        let vk_string = vk.bytes32();
+        log::info!("VK: {}", vk_string.as_str());
+
+        // Generate proof
+        let (journal, proof_bytes) = prove(
+            &client,
+            &pk,
+            stdin,
+            config.proof_system,
+        )
+        .await
+        .context("SP1 proving failed")?;
+
+        Ok((journal, proof_bytes))
+    }
+
+    fn program_identifier(&self) -> Result<String> {
+        log::info!("Computing verifying key for SP1 DCAP program...");
+
+        // Use a runtime to run async setup
+        let rt = tokio::runtime::Handle::current();
+        let vk_string = rt.block_on(async {
+            let client = ProverClient::builder().mock().build().await;
+            let pk = client.setup(Elf::Static(self.elf)).await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+            Ok::<String, anyhow::Error>(pk.verifying_key().bytes32())
+        })?;
+
+        Ok(vk_string)
+    }
+
+    fn circuit_version() -> String {
+        SP1_CIRCUIT_VERSION.to_string()
+    }
+}

@@ -35,7 +35,6 @@ async fn main() {
     let proof_config = prover::ProofConfig::from_env();
     info!(
         proof_system = ?proof_config.proof_system,
-        network_mode = ?proof_config.network_mode,
         "DCAP proof config initialized"
     );
 

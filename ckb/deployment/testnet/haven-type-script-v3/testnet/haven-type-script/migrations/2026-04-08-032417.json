@@ -1,0 +1,13 @@
+{
+  "cell_recipes": [
+    {
+      "name": "haven-type-script",
+      "tx_hash": "0x8d36b87574a794f5fbcb959dd42050bccae71c79c7cbe65d2379d20d81089305",
+      "index": 0,
+      "occupied_capacity": 27628000000000,
+      "data_hash": "0x9eb9423f3d2436d67fdc9d6c687d5357aa6aa31a88b9b0a8d7df4e3c02db1ba9",
+      "type_id": "0x134e98b02554060a248e337f63eb5a6136c379f41afad9f4bc023c0f3b52d715"
+    }
+  ],
+  "dep_group_recipes": []
+}

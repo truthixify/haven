@@ -8,27 +8,22 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiOkResponse, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
 
-/**
- * Notification Controller
- *
- * REST endpoints for the dashboard to fetch and manage notifications.
- * All routes live under the NestJS global prefix (`/api`), so the
- * full paths are `/api/notifications/...`.
- */
+@ApiTags('Notifications')
 @Controller('notifications')
 export class NotificationController {
   private readonly logger = new Logger(NotificationController.name);
 
   constructor(private readonly notificationService: NotificationService) {}
 
-  /**
-   * GET /notifications?commitment=<hex>&limit=20&unreadOnly=false
-   *
-   * Fetch notifications for a given identity commitment.
-   */
   @Get()
+  @ApiOperation({ summary: 'Get notifications', description: 'Fetch notifications for a given identity commitment.' })
+  @ApiQuery({ name: 'commitment', description: 'Identity commitment (64-char hex)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max notifications to return', example: '20' })
+  @ApiQuery({ name: 'unreadOnly', required: false, description: 'Only return unread notifications', example: 'false' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { notifications: { type: 'array', items: { type: 'object' } } } } })
   async getNotifications(
     @Query('commitment') commitment: string,
     @Query('limit') limitStr?: string,
@@ -53,12 +48,10 @@ export class NotificationController {
     return { notifications };
   }
 
-  /**
-   * GET /notifications/unread-count?commitment=<hex>
-   *
-   * Get the number of unread notifications for a user.
-   */
   @Get('unread-count')
+  @ApiOperation({ summary: 'Unread count', description: 'Get the number of unread notifications for a user.' })
+  @ApiQuery({ name: 'commitment', description: 'Identity commitment (64-char hex)' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { count: { type: 'number' } } } })
   async getUnreadCount(@Query('commitment') commitment: string) {
     if (!commitment) {
       throw new HttpException(
@@ -71,12 +64,10 @@ export class NotificationController {
     return { count };
   }
 
-  /**
-   * POST /notifications/:id/read
-   *
-   * Mark a single notification as read.
-   */
   @Post(':id/read')
+  @ApiOperation({ summary: 'Mark as read', description: 'Mark a single notification as read.' })
+  @ApiParam({ name: 'id', description: 'Notification UUID' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { success: { type: 'boolean' } } } })
   async markAsRead(@Param('id') id: string) {
     const success = await this.notificationService.markAsRead(id);
 
@@ -87,12 +78,10 @@ export class NotificationController {
     return { success: true };
   }
 
-  /**
-   * POST /notifications/read-all?commitment=<hex>
-   *
-   * Mark all notifications for a user as read.
-   */
   @Post('read-all')
+  @ApiOperation({ summary: 'Mark all as read', description: 'Mark all notifications for a user as read.' })
+  @ApiQuery({ name: 'commitment', description: 'Identity commitment (64-char hex)' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { success: { type: 'boolean' }, markedRead: { type: 'number' } } } })
   async markAllAsRead(@Query('commitment') commitment: string) {
     if (!commitment) {
       throw new HttpException(

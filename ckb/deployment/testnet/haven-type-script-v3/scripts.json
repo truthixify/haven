@@ -1,0 +1,21 @@
+{
+  "devnet": {},
+  "testnet": {
+    "haven-type-script": {
+      "codeHash": "0x134e98b02554060a248e337f63eb5a6136c379f41afad9f4bc023c0f3b52d715",
+      "hashType": "type",
+      "cellDeps": [
+        {
+          "cellDep": {
+            "outPoint": {
+              "txHash": "0x8d36b87574a794f5fbcb959dd42050bccae71c79c7cbe65d2379d20d81089305",
+              "index": 0
+            },
+            "depType": "code"
+          }
+        }
+      ]
+    }
+  },
+  "mainnet": {}
+}

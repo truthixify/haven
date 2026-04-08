@@ -23,7 +23,7 @@ ckb_std::default_alloc!(16384, 1258306, 64);
 use alloc::vec::Vec;
 use ckb_std::{
     ckb_constants::Source,
-    ckb_types::bytes::Bytes,
+    // ckb_types::bytes::Bytes, // no longer needed for SP1 verification
     high_level::{
         load_cell_data, load_cell_type_hash, load_script_hash,
         load_witness_args, QueryIter,
@@ -31,8 +31,8 @@ use ckb_std::{
 };
 use haven_types::{
     error, PublicInputs, RegistryCell, ScoreCell,
-    CURRENT_VERSION, MAX_SCORE, PUBLIC_INPUTS_ACTUAL_SIZE, REGISTRY_CELL_ACTUAL_SIZE,
-    SCORE_CELL_SIZE, TEE_WITNESS_HEADER_SIZE,
+    CURRENT_VERSION, MAX_SCORE, PUBLIC_INPUTS_ACTUAL_SIZE, REGISTRY_CELL_ACTUAL_SIZE, 
+    TEE_WITNESS_HEADER_SIZE,
 };
 use sp1_verifier::PlonkVerifier;
 
@@ -132,11 +132,13 @@ fn handle_update() -> Result<(), i8> {
     }
 
     // Parse witness layout:
-    // [0]         = path flag (should be 0x00 for TEE update)
-    // [1..85]     = public inputs (84 bytes)
-    // [85..117]   = vk_hash (32 bytes)
-    // [117..121]  = proof_len (u32 LE)
-    // [121..]     = proof bytes
+    // [0]                          = path flag (0x00 for TEE update)
+    // [1..85]                      = public inputs (84 bytes)
+    // [85..117]                    = vk_hash (32 bytes)
+    // [117..121]                   = proof_len (u32 LE)
+    // [121..121+proof_len]         = proof bytes
+    // [121+proof_len..+4]          = journal_len (u32 LE)
+    // [121+proof_len+4..]          = journal bytes (SP1 public values)
     let path_flag = witness[0];
     if path_flag != haven_types::PATH_TEE_UPDATE {
         return Err(error::INVALID_PATH_FLAG);
@@ -144,7 +146,7 @@ fn handle_update() -> Result<(), i8> {
 
     let pi_end = 1 + PUBLIC_INPUTS_ACTUAL_SIZE; // 85
     let vk_end = pi_end + 32;                   // 117
-    let len_end = vk_end + 4;                   // 121
+    let proof_len_end = vk_end + 4;             // 121
 
     let public_inputs_bytes = &witness[1..pi_end];
     let public_inputs = PublicInputs::from_bytes(public_inputs_bytes)?;
@@ -156,11 +158,25 @@ fn handle_update() -> Result<(), i8> {
         witness[vk_end], witness[vk_end + 1], witness[vk_end + 2], witness[vk_end + 3],
     ]) as usize;
 
-    if witness.len() < len_end + proof_len {
+    if witness.len() < proof_len_end + proof_len + 4 {
         return Err(error::INVALID_WITNESS);
     }
 
-    let proof_bytes = &witness[len_end..len_end + proof_len];
+    let proof_bytes = &witness[proof_len_end..proof_len_end + proof_len];
+
+    // Parse journal (SP1 public values)
+    let journal_offset = proof_len_end + proof_len;
+    let journal_len = u32::from_le_bytes([
+        witness[journal_offset], witness[journal_offset + 1],
+        witness[journal_offset + 2], witness[journal_offset + 3],
+    ]) as usize;
+    let journal_start = journal_offset + 4;
+
+    if witness.len() < journal_start + journal_len {
+        return Err(error::INVALID_WITNESS);
+    }
+
+    let journal_bytes = &witness[journal_start..journal_start + journal_len];
 
     // -----------------------------------------------------------------------
     // Validate public inputs against cell state
@@ -246,25 +262,22 @@ fn handle_update() -> Result<(), i8> {
     // SP1 PLONK proof verification
     // -----------------------------------------------------------------------
 
-    // Serialize public inputs for verification.
-    let mut pi_buf = [0u8; PUBLIC_INPUTS_ACTUAL_SIZE];
-    public_inputs.to_bytes(&mut pi_buf).map_err(|_| error::PROOF_VERIFICATION_FAILED)?;
-    let pi_bytes = Bytes::from(pi_buf.to_vec());
-
-    // Convert vk_hash bytes to hex string for PlonkVerifier API
-    let mut vk_hash_hex = [0u8; 64];
+    // Convert vk_hash bytes to hex string WITH "0x" prefix for PlonkVerifier API
+    let mut vk_hash_hex = [0u8; 66]; // "0x" + 64 hex chars
+    vk_hash_hex[0] = b'0';
+    vk_hash_hex[1] = b'x';
     for (i, byte) in vk_hash.iter().enumerate() {
         let hi = byte >> 4;
         let lo = byte & 0x0f;
-        vk_hash_hex[i * 2] = if hi < 10 { b'0' + hi } else { b'a' + hi - 10 };
-        vk_hash_hex[i * 2 + 1] = if lo < 10 { b'0' + lo } else { b'a' + lo - 10 };
+        vk_hash_hex[2 + i * 2] = if hi < 10 { b'0' + hi } else { b'a' + hi - 10 };
+        vk_hash_hex[2 + i * 2 + 1] = if lo < 10 { b'0' + lo } else { b'a' + lo - 10 };
     }
-    let vk_hash_str = core::str::from_utf8(&vk_hash_hex).map_err(|_| error::PROOF_VERIFICATION_FAILED)?;
+    let vk_hash_str = core::str::from_utf8(&vk_hash_hex).map_err(|_| error::VK_HASH_ENCODING_FAILED)?;
 
-    // Verify the SP1 PLONK proof.
+    // Verify the SP1 PLONK proof using the journal (SP1 public values).
     PlonkVerifier::verify(
         proof_bytes,
-        &pi_bytes,
+        journal_bytes,
         vk_hash_str,
         sp1_verifier::PLONK_VK_BYTES,
     )

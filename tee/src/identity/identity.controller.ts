@@ -3,50 +3,66 @@ import {
   Post,
   Get,
   Body,
+  Query,
   Logger,
   HttpCode,
   HttpStatus,
   BadRequestException,
-  Req,
-  UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { ApiTags, ApiOperation, ApiOkResponse, ApiBadRequestResponse, ApiQuery, ApiProperty } from '@nestjs/swagger';
 import { IdentityService } from './identity.service';
-import { TeeSessionGuard } from '../auth/guards/tee-session.guard';
 
-interface VerifyWalletDto {
+class VerifyWalletDto {
+  @ApiProperty({ description: 'CKB public key (hex)', required: false })
   ckbPubKey?: string;
+
+  @ApiProperty({ description: 'CKB address (alternative to ckbPubKey)', required: false })
   address?: string;
+
+  @ApiProperty({ description: 'Wallet signature over the message' })
   signature: string;
+
+  @ApiProperty({ description: 'Message that was signed' })
   message: string;
+
+  @ApiProperty({ description: 'Lock script code hash', required: false })
   lockCodeHash?: string;
+
+  @ApiProperty({ description: 'Lock script hash type', required: false, default: 'type' })
   lockHashType?: string;
+
+  @ApiProperty({ description: 'Lock script args', required: false })
   lockArgs?: string;
 }
 
-/**
- * Identity Controller
- *
- * Handles CKB wallet verification and identity registration.
- * The first step of the Haven Protocol user setup flow.
- */
+class CommitmentDto {
+  @ApiProperty({ description: 'CKB public key (hex)' })
+  ckbPubKey: string;
+}
+
+class ScoreCellDto {
+  @ApiProperty({ description: 'Identity commitment (64-char hex)' })
+  identityCommitment: string;
+
+  @ApiProperty({ description: 'Transaction hash of the score cell creation tx' })
+  txHash: string;
+
+  @ApiProperty({ description: 'Output index of the score cell', default: 0 })
+  index: number;
+}
+
+@ApiTags('Identity')
 @Controller('identity')
 export class IdentityController {
   private readonly logger = new Logger(IdentityController.name);
 
   constructor(private readonly identityService: IdentityService) {}
 
-  /**
-   * Verify a CKB wallet and register the identity.
-   *
-   * This is the first call in the user setup flow:
-   * 1. User signs identity message in dashboard via CCC
-   * 2. Dashboard sends pubkey + signature + message to TEE
-   * 3. TEE verifies and creates identity commitment
-   * 4. Identity commitment returned to dashboard for subsequent calls
-   */
   @Post('verify')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Register identity', description: 'Verify a CKB wallet signature and register the identity commitment in the TEE.' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { identityCommitment: { type: 'string' } } } })
+  @ApiBadRequestResponse({ description: 'Missing fields or invalid signature' })
   async verifyWallet(
     @Body() dto: VerifyWalletDto,
   ): Promise<{ identityCommitment: string }> {
@@ -71,7 +87,6 @@ export class IdentityController {
       );
     }
 
-    // Save lock script info if provided (used for on-chain activity scoring)
     if (dto.lockCodeHash && dto.lockArgs) {
       try {
         await this.identityService.updateLockScript(
@@ -88,35 +103,29 @@ export class IdentityController {
     return result;
   }
 
-  /**
-   * Check if an identity commitment is registered.
-   * Public endpoint - no auth required.
-   */
   @Get('check')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check identity', description: 'Check if an identity commitment is registered in the TEE.' })
+  @ApiQuery({ name: 'commitment', description: '64-char hex identity commitment' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { registered: { type: 'boolean' } } } })
   async checkIdentity(
-    @Req() req: Request,
+    @Query('commitment') commitment: string,
   ): Promise<{ registered: boolean }> {
-    const identityCommitment = req.query['commitment'] as string;
-
-    if (!identityCommitment || !/^[0-9a-f]{64}$/i.test(identityCommitment)) {
+    if (!commitment || !/^[0-9a-f]{64}$/i.test(commitment)) {
       throw new BadRequestException('Invalid identity commitment format');
     }
 
     const registered =
-      await this.identityService.isRegistered(identityCommitment);
+      await this.identityService.isRegistered(commitment);
     return { registered };
   }
 
-  /**
-   * Get the identity commitment for a public key.
-   * Pure computation, no storage access needed.
-   * Public endpoint.
-   */
   @Post('commitment')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get commitment', description: 'Compute the identity commitment for a given CKB public key. Pure computation, no storage access.' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { identityCommitment: { type: 'string' } } } })
   async getCommitment(
-    @Body() body: { ckbPubKey: string },
+    @Body() body: CommitmentDto,
   ): Promise<{ identityCommitment: string }> {
     if (!body.ckbPubKey) {
       throw new BadRequestException('Missing ckbPubKey');
@@ -127,14 +136,12 @@ export class IdentityController {
     return { identityCommitment };
   }
 
-  /**
-   * Save the user's score cell outpoint after creating it on-chain.
-   * The TEE needs this to know where the score cell is for updates.
-   */
   @Post('score-cell')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Save score cell outpoint', description: 'Save the on-chain score cell outpoint so the TEE knows where to send updates.' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { success: { type: 'boolean' } } } })
   async saveScoreCellOutpoint(
-    @Body() body: { identityCommitment: string; txHash: string; index: number },
+    @Body() body: ScoreCellDto,
   ): Promise<{ success: boolean }> {
     if (!body.identityCommitment || !body.txHash) {
       throw new BadRequestException('Missing identityCommitment or txHash');

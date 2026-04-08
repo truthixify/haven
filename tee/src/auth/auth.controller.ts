@@ -9,18 +9,13 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiOkResponse, ApiQuery, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { TeeSessionGuard } from './guards/tee-session.guard';
 
-/**
- * Auth Controller
- *
- * Handles OAuth flows for Twitter and GitHub.
- * Tokens are passed directly to TEE processing and stored
- * ONLY in sealed storage.
- */
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -31,22 +26,16 @@ export class AuthController {
   // Twitter OAuth Flow
   // -----------------------------------------------------------------------
 
-  /**
-   * Initiate Twitter OAuth flow.
-   * Redirects the user to Twitter for authorization.
-   */
   @Get('twitter')
   @UseGuards(AuthGuard('twitter'))
+  @ApiOperation({ summary: 'Start Twitter OAuth', description: 'Redirects the user to Twitter for authorization.' })
   async twitterAuth(): Promise<void> {
     // Passport redirects to Twitter automatically
   }
 
-  /**
-   * Twitter OAuth callback.
-   * Receives the token, seals it into TEE storage.
-   */
   @Get('twitter/callback')
   @UseGuards(AuthGuard('twitter'))
+  @ApiExcludeEndpoint()
   async twitterCallback(
     @Req() req: Request,
     @Res() res: Response,
@@ -86,22 +75,16 @@ export class AuthController {
   // GitHub OAuth Flow
   // -----------------------------------------------------------------------
 
-  /**
-   * Initiate GitHub OAuth flow.
-   * Redirects the user to GitHub for authorization.
-   */
   @Get('github')
   @UseGuards(AuthGuard('github'))
+  @ApiOperation({ summary: 'Start GitHub OAuth', description: 'Redirects the user to GitHub for authorization.' })
   async githubAuth(): Promise<void> {
     // Passport redirects to GitHub automatically
   }
 
-  /**
-   * GitHub OAuth callback.
-   * Receives the token, seals it into TEE storage.
-   */
   @Get('github/callback')
   @UseGuards(AuthGuard('github'))
+  @ApiExcludeEndpoint()
   async githubCallback(
     @Req() req: Request,
     @Res() res: Response,
@@ -140,12 +123,11 @@ export class AuthController {
   // Account Status
   // -----------------------------------------------------------------------
 
-  /**
-   * Check which accounts are linked for the authenticated user.
-   * Returns booleans only - never exposes actual account IDs or tokens.
-   */
   @Get('status')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Account link status', description: 'Check which accounts (Twitter, GitHub, wallet) are linked for a given identity.' })
+  @ApiQuery({ name: 'commitment', required: false, description: 'Identity commitment (or pass X-Haven-Identity header)' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { twitter: { type: 'boolean' }, github: { type: 'boolean' }, wallet: { type: 'boolean' } } } })
   async getAccountStatus(@Req() req: Request): Promise<{
     twitter: boolean;
     github: boolean;
@@ -161,24 +143,22 @@ export class AuthController {
     return this.authService.getLinkedAccounts(identityCommitment);
   }
 
-  /**
-   * Unlink Twitter account.
-   */
   @Post('twitter/unlink')
   @UseGuards(TeeSessionGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unlink Twitter', description: 'Remove the linked Twitter account. Requires TEE session.' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { success: { type: 'boolean' } } } })
   async unlinkTwitter(@Req() req: Request): Promise<{ success: boolean }> {
     const identityCommitment = (req as any).identityCommitment as string;
     const success = await this.authService.unlinkTwitter(identityCommitment);
     return { success };
   }
 
-  /**
-   * Unlink GitHub account.
-   */
   @Post('github/unlink')
   @UseGuards(TeeSessionGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unlink GitHub', description: 'Remove the linked GitHub account. Requires TEE session.' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { success: { type: 'boolean' } } } })
   async unlinkGitHub(@Req() req: Request): Promise<{ success: boolean }> {
     const identityCommitment = (req as any).identityCommitment as string;
     const success = await this.authService.unlinkGitHub(identityCommitment);

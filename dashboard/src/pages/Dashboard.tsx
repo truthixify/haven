@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { ccc } from '@ckb-ccc/connector-react';
 import { useHavenScore } from '../hooks/useHavenScore';
 import { useDeposit } from '../hooks/useDeposit';
@@ -6,7 +7,9 @@ import { useSystemStatus } from '../hooks/useSystemStatus';
 import { formatRelativeTime } from '../utils/formatRelativeTime';
 import { getTierForScore } from '@haven-protocol/ckb-sdk';
 import type { ScoreBreakdown as BreakdownType } from '@haven-protocol/ckb-sdk';
+import { HavenTeeClient } from '@haven-protocol/ckb-sdk/tee';
 import { formatCkbAmount } from '../hooks/useDeposit';
+import { config } from '../config';
 import ScoreHistoryChart from '../components/score/ScoreHistory';
 import ActionLoadingOverlay from '../components/loading/ActionLoadingOverlay';
 
@@ -26,6 +29,22 @@ export default function Dashboard() {
     createScoreCell,
     topUp,
   } = useDeposit();
+
+  // Score refresh handler (hooks must be before any early return)
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    if (!identityCommitment || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      const tee = new HavenTeeClient(config.teeEndpoint);
+      await tee.requestScoreRefresh(identityCommitment);
+      refresh();
+    } catch {
+      // silent — refresh is best-effort
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [identityCommitment, isRefreshing, refresh]);
 
   // Not connected state
   if (!wallet) {
@@ -53,22 +72,8 @@ export default function Dashboard() {
     );
   }
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <ActionLoadingOverlay
-        isOpen={true}
-        title="Loading Haven Dashboard"
-        description="Querying your Haven Score cell and deposit balance from CKB testnet."
-        steps={[
-          { label: 'Resolving Wallet Lock Hash', status: 'verified' },
-          { label: 'Searching Score Cells on CKB', status: 'processing' },
-        ]}
-      />
-    );
-  }
-
   // No score — two-step onboarding: 1) Register Identity, 2) Create Score Cell
+  // (shown even while score search is still loading — don't block the UI)
   if (!hasScore) {
     const needsIdentity = !identityCommitment;
 
@@ -229,9 +234,21 @@ export default function Dashboard() {
           {/* Subtle background noise/gradient */}
           <div className="absolute inset-0 opacity-10 pointer-events-none sovereign-gradient mix-blend-overlay" />
           <div className="relative z-10 flex flex-col items-start">
-            <span className="text-xs font-mono text-secondary tracking-tighter mb-4">
-              CRITICAL REPUTATION INDEX
-            </span>
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-xs font-mono text-secondary tracking-tighter">
+                CRITICAL REPUTATION INDEX
+              </span>
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                title="Refresh score"
+                className="p-1 rounded-md text-[#cbc3d7]/60 hover:text-primary hover:bg-[#343537] transition-all disabled:opacity-40"
+              >
+                <span className={`material-symbols-outlined text-base ${isRefreshing ? 'animate-spin' : ''}`}>
+                  refresh
+                </span>
+              </button>
+            </div>
             <div className="flex items-end gap-6 mb-8">
               <h2 className="text-6xl md:text-8xl font-headline font-bold tracking-tighter text-[#e3e2e5]">
                 {score!.score}

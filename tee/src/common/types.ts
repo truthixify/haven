@@ -215,6 +215,8 @@ export interface SP1ProofResult {
   publicInputs: SP1PublicInputs;
   /** SP1 verification key hash, hex-encoded (32 bytes) */
   vkHash: string;
+  /** SP1 program journal / public values (hex-encoded) — what the verifier needs */
+  publicValues: string;
 }
 
 export interface SP1PublicInputs {
