@@ -12,7 +12,7 @@ React web application for interacting with Haven Protocol. Connects to CKB walle
 
 ## Design System
 
-"The Mathematical Monolith" -- obsidian dark theme.
+"The Mathematical Monolith," an obsidian dark theme.
 
 - **Fonts:** Space Grotesk (headlines), Inter (body/labels), JetBrains Mono (monospace)
 - **Sovereign Purple:** `#d0bcff` (primary)
@@ -58,8 +58,8 @@ Create a `.env` file or set these variables:
 | `VITE_HAVEN_TYPE_SCRIPT_CELLDEP_INDEX` | Type script cell dep index | `0` |
 | `VITE_HAVEN_REGISTRY_CELLDEP_TX_HASH` | Registry cell dep tx hash | `0x31105ea4...` |
 | `VITE_HAVEN_REGISTRY_CELLDEP_INDEX` | Registry cell dep index | `0` |
-| `VITE_TWITTER_CLIENT_ID` | Twitter OAuth client ID (for initiating OAuth from dashboard) | -- |
-| `VITE_GITHUB_CLIENT_ID` | GitHub OAuth client ID | -- |
+| `VITE_TWITTER_CLIENT_ID` | Twitter OAuth client ID (for initiating OAuth from dashboard) | N/A |
+| `VITE_GITHUB_CLIENT_ID` | GitHub OAuth client ID | N/A |
 
 ## Run
 

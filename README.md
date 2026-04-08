@@ -6,11 +6,11 @@
 
 ## What is Haven
 
-Haven Protocol is a privacy reputation and incentivized discovery layer built natively on Nervos CKB. Users earn a public, non-transferable Haven Score (0-1000) based on real activity across Twitter, GitHub, and on-chain ecosystems. The score is fully visible -- it appears on public dashboards, leaderboards, and is readable by any dApp on CKB. What is never visible is the identity behind the score.
+Haven Protocol is a privacy reputation and incentivized discovery layer built natively on Nervos CKB. Users earn a public, non-transferable Haven Score (0-1000) based on real activity across Twitter, GitHub, and on-chain ecosystems. The score is fully visible: it appears on public dashboards, leaderboards, and is readable by any dApp on CKB. What is never visible is the identity behind the score.
 
-When users connect their accounts to Haven, those linkages are stored exclusively inside a Phala Network TEE (Trusted Execution Environment) in a PostgreSQL database running locally within the TEE container. Nobody outside the TEE -- not Haven contributors, not any database, not on-chain observers -- can ever know which Twitter account, GitHub profile, or set of wallets belongs to a given Haven Score. The TEE hardware protects the environment, and the data never leaves.
+When users connect their accounts to Haven, those linkages are stored exclusively inside a Phala Network TEE (Trusted Execution Environment) in a PostgreSQL database running locally within the TEE container. Nobody outside the TEE (not Haven contributors, not any database, not on-chain observers) can ever know which Twitter account, GitHub profile, or set of wallets belongs to a given Haven Score. The TEE hardware protects the environment, and the data never leaves.
 
-There is no traditional backend. The Phala TEE handles all computation, proof requests, and on-chain settlement. The SP1 proof worker generates a ZK proof (SP1 PLONK) that verifies the TEE correctly executed the scoring computation -- that it computed each component score (privacy, contribution, humanity, community) honestly from real activity data and produced the final score without tampering. The CKB type script checks this proof on-chain before allowing any score update. If the proof is invalid, the score does not change.
+There is no traditional backend. The Phala TEE handles all computation, proof requests, and on-chain settlement. The SP1 proof worker generates a ZK proof (SP1 PLONK) that verifies the TEE correctly executed the scoring computation, confirming that it computed each component score (privacy, contribution, humanity, community) honestly from real activity data and produced the final score without tampering. The CKB type script checks this proof on-chain before allowing any score update. If the proof is invalid, the score does not change.
 
 ## Architecture
 
@@ -53,16 +53,16 @@ There is no traditional backend. The Phala TEE handles all computation, proof re
                                           +-------------+
 ```
 
-**Data flow:** User connects wallet and accounts via Dashboard. OAuth tokens go directly to the Phala TEE. The TEE stores them in a local PostgreSQL database, collects activity, computes scores, and sends DCAP attestation to the Proof Worker. The Proof Worker generates a ZK proof (SP1 PLONK) that verifies the TEE correctly executed the scoring computation for each user. The TEE then constructs and submits CKB transactions with this proof. The on-chain type script checks the proof before allowing the score cell to update. dApps read score cells directly from CKB via the SDK -- no Haven server involved. The TEE creates notifications on score changes, tier changes, and low deposit balance.
+**Data flow:** User connects wallet and accounts via Dashboard. OAuth tokens go directly to the Phala TEE. The TEE stores them in a local PostgreSQL database, collects activity, computes scores, and sends DCAP attestation to the Proof Worker. The Proof Worker generates a ZK proof (SP1 PLONK) that verifies the TEE correctly executed the scoring computation for each user. The TEE then constructs and submits CKB transactions with this proof. The on-chain type script checks the proof before allowing the score cell to update. dApps read score cells directly from CKB via the SDK, with no Haven server involved. The TEE creates notifications on score changes, tier changes, and low deposit balance.
 
 ## Components
 
 | Component | Description | Tech Stack | Port | Directory |
 |-----------|-------------|------------|------|-----------|
-| **CKB Scripts** | On-chain type script (SP1 proof verification, score rules, top-up check) and lock script (dual-path: TEE update + user control) | Rust, RISC-V, `no_std`, `ckb-std`, `sp1-verifier` | -- | `ckb/` |
+| **CKB Scripts** | On-chain type script (SP1 proof verification, score rules, top-up check) and lock script (dual-path: TEE update + user control) | Rust, RISC-V, `no_std`, `ckb-std`, `sp1-verifier` | N/A | `ckb/` |
 | **TEE Service** | Phala TEE service that handles OAuth, scoring, DCAP attestation, notifications, health monitoring, and CKB transaction submission | NestJS, TypeScript, TypeORM, PostgreSQL, `@phala/dstack-sdk`, CCC | 3000 | `tee/` |
 | **Proof Worker** | Stateless SP1 proof generator for DCAP attestations using Automata's zkVM verifier | Rust, Axum, `automata-dcap-zkvm` v1.1.1-alpha-3, SP1, Alloy | 3001 | `proof-worker/` |
-| **SDK** | TypeScript SDK for reading and verifying Haven Scores from CKB. Includes React hooks and TEE client | TypeScript, CCC (`@ckb-ccc/core`), React (optional) | -- | `sdk/` |
+| **SDK** | TypeScript SDK for reading and verifying Haven Scores from CKB. Includes React hooks and TEE client | TypeScript, CCC (`@ckb-ccc/core`), React (optional) | N/A | `sdk/` |
 | **Dashboard** | Web frontend for connecting accounts, viewing scores, leaderboard, notifications, and managing deposits | React, Vite, Tailwind CSS, CCC connector | 5173 | `dashboard/` |
 
 ## Quick Start
@@ -221,7 +221,7 @@ A public, non-transferable reputation score from 0 to 1000, stored on-chain in a
 | Proof of Human | 20% | 200 | Sybil resistance, account age, cross-platform consistency |
 | Community Engagement | 10% | 100 | Platform participation, on-chain activity patterns |
 
-Scores are rebalanced for CKB-only scoring -- users without social accounts connected still receive meaningful scores from on-chain activity.
+Scores are rebalanced for CKB-only scoring, so users without social accounts connected still receive meaningful scores from on-chain activity.
 
 ### Score Tiers
 
@@ -249,7 +249,7 @@ The Haven type script includes an `is_topup_only` check. When the only change to
 
 ### TEE Attestation
 
-All account linkages and scoring happen inside the Phala TEE. A DCAP attestation cryptographically proves the scoring computation ran inside a genuine Intel TDX enclave, binding the scoring result to the TEE's execution environment. The SP1 proof worker then generates a ZK proof that verifies the TEE executed the scoring program correctly -- computing each component score honestly from the collected activity data and producing the final score without tampering. The CKB type script checks this proof on-chain before allowing any score update.
+All account linkages and scoring happen inside the Phala TEE. A DCAP attestation cryptographically proves the scoring computation ran inside a genuine Intel TDX enclave, binding the scoring result to the TEE's execution environment. The SP1 proof worker then generates a ZK proof that verifies the TEE executed the scoring program correctly, computing each component score honestly from the collected activity data and producing the final score without tampering. The CKB type script checks this proof on-chain before allowing any score update.
 
 ### Notifications
 
@@ -268,23 +268,23 @@ The TEE creates notifications on score changes, tier changes, and low deposit ba
 | `CKB_NETWORK` | Yes | CKB network (`testnet` or `mainnet`) | `testnet` |
 | `CKB_RPC_URL` | Yes | CKB RPC endpoint | `https://testnet.ckb.dev/rpc` |
 | `CKB_INDEXER_URL` | Yes | CKB indexer endpoint | `https://testnet.ckb.dev/indexer` |
-| `TEE_SIGNING_KEY` | Yes | CKB private key for transaction signing (hex) | -- |
+| `TEE_SIGNING_KEY` | Yes | CKB private key for transaction signing (hex) | N/A |
 | `DSTACK_ENDPOINT` | No | Phala dstack endpoint (empty for production TEE) | `http://localhost:8090` |
 | `DATABASE_HOST` | Yes | PostgreSQL host | `localhost` |
 | `DATABASE_PORT` | Yes | PostgreSQL port | `5432` |
 | `DATABASE_NAME` | Yes | PostgreSQL database name | `haven` |
 | `DATABASE_USER` | Yes | PostgreSQL user | `haven` |
 | `DATABASE_PASSWORD` | Yes | PostgreSQL password | `haven_tee_secret` |
-| `TWITTER_CLIENT_ID` | Yes | Twitter OAuth 2.0 client ID | -- |
-| `TWITTER_CLIENT_SECRET` | Yes | Twitter OAuth 2.0 client secret | -- |
+| `TWITTER_CLIENT_ID` | Yes | Twitter OAuth 2.0 client ID | N/A |
+| `TWITTER_CLIENT_SECRET` | Yes | Twitter OAuth 2.0 client secret | N/A |
 | `TWITTER_CALLBACK_URL` | Yes | Twitter OAuth callback URL | `http://localhost:3000/api/auth/twitter/callback` |
-| `GITHUB_CLIENT_ID` | Yes | GitHub OAuth app client ID | -- |
-| `GITHUB_CLIENT_SECRET` | Yes | GitHub OAuth app client secret | -- |
+| `GITHUB_CLIENT_ID` | Yes | GitHub OAuth app client ID | N/A |
+| `GITHUB_CLIENT_SECRET` | Yes | GitHub OAuth app client secret | N/A |
 | `GITHUB_CALLBACK_URL` | Yes | GitHub OAuth callback URL | `http://localhost:3000/api/auth/github/callback` |
 | `PROOF_WORKER_URL` | Yes | URL of the proof worker service | `http://localhost:3001` |
-| `HAVEN_REGISTRY_TX_HASH` | Yes | Transaction hash of the Registry cell | -- |
+| `HAVEN_REGISTRY_TX_HASH` | Yes | Transaction hash of the Registry cell | N/A |
 | `HAVEN_REGISTRY_INDEX` | Yes | Output index of the Registry cell | `0` |
-| `HAVEN_TYPE_SCRIPT_CODE_HASH` | Yes | Deployed type script code hash (hex) | -- |
+| `HAVEN_TYPE_SCRIPT_CODE_HASH` | Yes | Deployed type script code hash (hex) | N/A |
 | `HAVEN_TYPE_SCRIPT_HASH_TYPE` | Yes | Type script hash type | `type` |
 | `SCORING_CRON` | No | Cron expression for scoring cycle | `0 0 * * *` (production) or `*/5 * * * *` (testing) |
 | `PORT` | No | HTTP server port | `3000` |
@@ -293,10 +293,10 @@ The TEE creates notifications on score changes, tier changes, and low deposit ba
 
 | Variable | Required | Description | Default |
 |----------|----------|-------------|---------|
-| `SP1_PRIVATE_KEY` | Yes | SP1 Network private key for remote proving | -- |
+| `SP1_PRIVATE_KEY` | Yes | SP1 Network private key for remote proving | N/A |
 | `DCAP_PROOF_SYSTEM` | No | Proof system (`plonk` or `groth16`) | `plonk` |
 | `DCAP_NETWORK_MODE` | No | SP1 prover mode (`auction`, `hosted`, `reserved`) | `auction` |
-| `AUTOMATA_RPC_URL` | Yes | Ethereum RPC for DCAP collateral fetching | -- |
+| `AUTOMATA_RPC_URL` | Yes | Ethereum RPC for DCAP collateral fetching | N/A |
 | `PORT` | No | HTTP server port | `3001` |
 | `TEE_URL` | No | TEE service URL (proof worker sends proofs back) | `http://localhost:3000` |
 
@@ -381,11 +381,11 @@ cd sdk && npm run typecheck
 
 See [docs/deployment.md](docs/deployment.md) for the full deployment guide. High-level overview:
 
-1. **CKB Scripts** -- Build RISC-V binaries and deploy to CKB testnet (Pudge) using `ckb-cli` or `offckb`
-2. **Registry Cell** -- Create the global Haven Registry cell with initial program hash and configuration
-3. **TEE Service** -- Deploy to Phala dstack (managed TEE infrastructure) with PostgreSQL co-located in the container
-4. **Proof Worker** -- Deploy as a standalone Rust service with SP1 Network access
-5. **Dashboard** -- Build and deploy as a static site (Vercel, Cloudflare Pages, etc.)
+1. **CKB Scripts:** Build RISC-V binaries and deploy to CKB testnet (Pudge) using `ckb-cli` or `offckb`
+2. **Registry Cell:** Create the global Haven Registry cell with initial program hash and configuration
+3. **TEE Service:** Deploy to Phala dstack (managed TEE infrastructure) with PostgreSQL co-located in the container
+4. **Proof Worker:** Deploy as a standalone Rust service with SP1 Network access
+5. **Dashboard:** Build and deploy as a static site (Vercel, Cloudflare Pages, etc.)
 
 ### Deployed Script Hashes (Testnet)
 

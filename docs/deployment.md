@@ -1,4 +1,4 @@
-# Haven Protocol -- Deployment Guide
+# Haven Protocol: Deployment Guide
 
 This guide covers deploying all Haven Protocol components: CKB on-chain scripts, TEE service, proof worker, and dashboard.
 
@@ -34,8 +34,8 @@ This guide covers deploying all Haven Protocol components: CKB on-chain scripts,
 - **SP1 toolchain**: `curl -L https://sp1up.dev | bash && ~/.sp1/bin/sp1up`
 - **Node.js** >= 18
 - **Docker** and **Docker Compose**: for running PostgreSQL
-- **CKB CLI**: [https://github.com/nervosnetwork/ckb-cli](https://github.com/nervosnetwork/ckb-cli) -- for deploying scripts and creating cells on CKB
-- **offckb** (optional): [https://github.com/nicognaW/offckb](https://github.com/nicognaW/offckb) -- simplified CKB script deployment tool
+- **CKB CLI**: [https://github.com/nervosnetwork/ckb-cli](https://github.com/nervosnetwork/ckb-cli), for deploying scripts and creating cells on CKB
+- **offckb** (optional): [https://github.com/nicognaW/offckb](https://github.com/nicognaW/offckb), a simplified CKB script deployment tool
 
 ---
 
@@ -52,8 +52,8 @@ make build      # Build all contracts in release mode
 ```
 
 Binaries are output to `ckb/build/release/`:
-- `haven-type-script` -- Score update verification (SP1 proof, rules, top-up check)
-- `haven-lock-script` -- Dual-path lock (TEE update + user control)
+- `haven-type-script`: Score update verification (SP1 proof, rules, top-up check)
+- `haven-lock-script`: Dual-path lock (TEE update + user control)
 
 Verify build integrity:
 ```bash
@@ -193,7 +193,7 @@ npm run start:prod     # Runs compiled output
 
 1. **Prepare your deployment configuration** for Phala dstack. The service is a standard NestJS application packaged as a Docker container with a PostgreSQL sidecar (using the provided `docker-compose.yml`).
 
-2. **Set environment variables** in the dstack deployment configuration (see [Environment Variables Reference](#environment-variables-reference) below). In production, leave `DSTACK_ENDPOINT` empty -- the service auto-connects to `/var/run/dstack.sock` inside the TEE.
+2. **Set environment variables** in the dstack deployment configuration (see [Environment Variables Reference](#environment-variables-reference) below). In production, leave `DSTACK_ENDPOINT` empty. The service auto-connects to `/var/run/dstack.sock` inside the TEE.
 
 3. **Configure PostgreSQL.** The database runs locally inside the TEE container via Docker Compose. The `docker-compose.yml` in the `tee/` directory defines both the `postgres` and `tee` services. Data is persisted to a Docker volume (`pgdata`).
 
@@ -280,7 +280,7 @@ The proof worker is a stateless HTTP service. Deploy it as:
 - A Docker container
 - A cloud service (AWS ECS, GCP Cloud Run, etc.)
 
-The proof worker has no privileged access -- it only generates proofs from DCAP attestations. It can be run by any party.
+The proof worker has no privileged access; it only generates proofs from DCAP attestations. It can be run by any party.
 
 ### Proof Worker Environment
 
@@ -307,9 +307,9 @@ TEE_URL=http://localhost:3000
 ```
 
 **SP1 proving modes:**
-- `auction` -- Cheapest option, uses Succinct's auction-based prover network. Proof generation time varies.
-- `hosted` -- Uses Succinct's hosted provers. Faster but more expensive.
-- `reserved` -- Uses your reserved prover capacity. Predictable performance.
+- `auction`: Cheapest option, uses Succinct's auction-based prover network. Proof generation time varies.
+- `hosted`: Uses Succinct's hosted provers. Faster but more expensive.
+- `reserved`: Uses your reserved prover capacity. Predictable performance.
 
 ---
 
@@ -340,8 +340,8 @@ The dashboard reads configuration from `src/config.ts`. The following values sho
 | `havenTypeScriptCellDepIndex` | Cell dep index | `0` |
 | `havenRegistryCellDepTxHash` | Registry cell dep TX hash | `0x31105ea4e1...` |
 | `havenRegistryCellDepIndex` | Registry cell dep index | `0` |
-| `twitterClientId` | Twitter OAuth client ID (for redirect URL construction) | -- |
-| `githubClientId` | GitHub OAuth client ID (for redirect URL construction) | -- |
+| `twitterClientId` | Twitter OAuth client ID (for redirect URL construction) | N/A |
+| `githubClientId` | GitHub OAuth client ID (for redirect URL construction) | N/A |
 
 These can also be set via Vite environment variables (prefixed with `VITE_`):
 
@@ -390,23 +390,23 @@ npm run preview    # Preview the production build locally
 | `CKB_NETWORK` | Yes | CKB network (`testnet` or `mainnet`) | `testnet` |
 | `CKB_RPC_URL` | Yes | CKB RPC endpoint | `https://testnet.ckb.dev/rpc` |
 | `CKB_INDEXER_URL` | Yes | CKB indexer endpoint | `https://testnet.ckb.dev/indexer` |
-| `TEE_SIGNING_KEY` | Yes | CKB private key for transaction signing (hex) | -- |
+| `TEE_SIGNING_KEY` | Yes | CKB private key for transaction signing (hex) | N/A |
 | `DSTACK_ENDPOINT` | No | Phala dstack endpoint (empty for production TEE) | `http://localhost:8090` |
 | `DATABASE_HOST` | Yes | PostgreSQL host | `localhost` |
 | `DATABASE_PORT` | Yes | PostgreSQL port | `5432` |
 | `DATABASE_NAME` | Yes | PostgreSQL database name | `haven` |
 | `DATABASE_USER` | Yes | PostgreSQL user | `haven` |
 | `DATABASE_PASSWORD` | Yes | PostgreSQL password | `haven_tee_secret` |
-| `TWITTER_CLIENT_ID` | Yes | Twitter OAuth 2.0 client ID | -- |
-| `TWITTER_CLIENT_SECRET` | Yes | Twitter OAuth 2.0 client secret | -- |
+| `TWITTER_CLIENT_ID` | Yes | Twitter OAuth 2.0 client ID | N/A |
+| `TWITTER_CLIENT_SECRET` | Yes | Twitter OAuth 2.0 client secret | N/A |
 | `TWITTER_CALLBACK_URL` | Yes | Twitter OAuth callback URL | `http://localhost:3000/api/auth/twitter/callback` |
-| `GITHUB_CLIENT_ID` | Yes | GitHub OAuth app client ID | -- |
-| `GITHUB_CLIENT_SECRET` | Yes | GitHub OAuth app client secret | -- |
+| `GITHUB_CLIENT_ID` | Yes | GitHub OAuth app client ID | N/A |
+| `GITHUB_CLIENT_SECRET` | Yes | GitHub OAuth app client secret | N/A |
 | `GITHUB_CALLBACK_URL` | Yes | GitHub OAuth callback URL | `http://localhost:3000/api/auth/github/callback` |
 | `PROOF_WORKER_URL` | Yes | URL of the proof worker service | `http://localhost:3001` |
-| `HAVEN_REGISTRY_TX_HASH` | Yes | Transaction hash of the Registry cell | -- |
+| `HAVEN_REGISTRY_TX_HASH` | Yes | Transaction hash of the Registry cell | N/A |
 | `HAVEN_REGISTRY_INDEX` | Yes | Output index of the Registry cell | `0` |
-| `HAVEN_TYPE_SCRIPT_CODE_HASH` | Yes | Deployed type script code hash (hex) | -- |
+| `HAVEN_TYPE_SCRIPT_CODE_HASH` | Yes | Deployed type script code hash (hex) | N/A |
 | `HAVEN_TYPE_SCRIPT_HASH_TYPE` | Yes | Type script hash type | `type` |
 | `SCORING_CRON` | No | Cron expression for scoring cycle | `*/5 * * * *` |
 | `PORT` | No | HTTP server port | `3000` |
@@ -415,10 +415,10 @@ npm run preview    # Preview the production build locally
 
 | Variable | Required | Description | Default |
 |----------|----------|-------------|---------|
-| `SP1_PRIVATE_KEY` | Yes | SP1 Network private key for remote proving | -- |
+| `SP1_PRIVATE_KEY` | Yes | SP1 Network private key for remote proving | N/A |
 | `DCAP_PROOF_SYSTEM` | No | Proof system (`plonk` or `groth16`) | `plonk` |
 | `DCAP_NETWORK_MODE` | No | SP1 prover mode (`auction`, `hosted`, `reserved`) | `auction` |
-| `AUTOMATA_RPC_URL` | Yes | Ethereum RPC for DCAP collateral fetching | -- |
+| `AUTOMATA_RPC_URL` | Yes | Ethereum RPC for DCAP collateral fetching | N/A |
 | `PORT` | No | HTTP server port | `3001` |
 | `TEE_URL` | No | TEE service URL | `http://localhost:3000` |
 

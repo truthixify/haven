@@ -1,4 +1,4 @@
-# Haven Protocol -- Technical Architecture
+# Haven Protocol: Technical Architecture
 
 This document describes the technical architecture of Haven Protocol, covering how the five components interact, data flows, on-chain cell layouts, and the security model.
 
@@ -93,7 +93,7 @@ The dashboard communicates directly with the Phala TEE for identity-sensitive op
 
 2. **Identity Check:** The dashboard can check if an identity is already registered via `/api/identity/check?commitment=...`.
 
-3. **OAuth Flows:** Twitter and GitHub OAuth redirects go through the TEE's auth endpoints. OAuth tokens are passed directly to the TEE and stored in the `connections` table in PostgreSQL -- they never touch any intermediate storage.
+3. **OAuth Flows:** Twitter and GitHub OAuth redirects go through the TEE's auth endpoints. OAuth tokens are passed directly to the TEE and stored in the `connections` table in PostgreSQL. They never touch any intermediate storage.
 
 4. **Score Refresh:** The dashboard can request a manual score refresh via the TEE's `/api/score/refresh` endpoint.
 
@@ -264,19 +264,19 @@ Step-by-step detail of a single score update:
 3. **User Processing:** Users are processed in batches of 10 to avoid overwhelming external APIs. Each user goes through the full pipeline. Failed users are logged and retried next cycle.
 
 4. **Activity Collection:** The scoring service reads the PostgreSQL database to retrieve connection tokens for each user. It calls three collectors in parallel:
-   - `twitter.collector.ts` -- Twitter API for privacy-related activity (only if Twitter is connected)
-   - `github.collector.ts` -- GitHub API for contribution history (only if GitHub is connected)
-   - `onchain.collector.ts` -- CKB indexer for on-chain activity (always collected; supports any lock script type including secp256k1, omnilock, JoyID)
+   - `twitter.collector.ts`: Twitter API for privacy-related activity (only if Twitter is connected)
+   - `github.collector.ts`: GitHub API for contribution history (only if GitHub is connected)
+   - `onchain.collector.ts`: CKB indexer for on-chain activity (always collected; supports any lock script type including secp256k1, omnilock, JoyID)
 
 5. **Score Computation:** The scoring service (`scoring.service.ts`) runs four formulas over the collected activity:
-   - `privacy-hygiene.ts` -- Address rotation (40%), transaction diversity (30%), total transactions (20%), account age (10%). Uses sigmoid normalization. Max 400.
-   - `contribution.ts` -- GitHub commits, governance participation. Max 300.
-   - `humanity.ts` -- Sybil resistance signals, account age, cross-platform consistency. Max 200.
-   - `community.ts` -- Platform participation. Max 100.
+   - `privacy-hygiene.ts`: Address rotation (40%), transaction diversity (30%), total transactions (20%), account age (10%). Uses sigmoid normalization. Max 400.
+   - `contribution.ts`: GitHub commits, governance participation. Max 300.
+   - `humanity.ts`: Sybil resistance signals, account age, cross-platform consistency. Max 200.
+   - `community.ts`: Platform participation. Max 100.
 
 6. **DCAP Attestation:** The attestation service (`attestation.service.ts`) generates a Phala DCAP attestation over the scoring output using `@phala/dstack-sdk`. The DCAP attestation cryptographically binds the scoring result to the TEE's execution environment, proving the computation ran inside a genuine Intel TDX enclave. This step is skipped if the proof worker is unavailable.
 
-7. **SP1 Proof Generation:** The proof worker client (`proof-worker.client.ts`) sends the DCAP attestation (hex-encoded TDX quote) to the proof worker's `/prove` endpoint. The proof worker uses Automata's `automata-dcap-zkvm` to generate an SP1 PLONK proof that verifies the TEE correctly executed the scoring computation -- that each component score (privacy, contribution, humanity, community) was computed honestly from real activity data and the final score was produced without tampering. This step is skipped if the proof worker is unavailable.
+7. **SP1 Proof Generation:** The proof worker client (`proof-worker.client.ts`) sends the DCAP attestation (hex-encoded TDX quote) to the proof worker's `/prove` endpoint. The proof worker uses Automata's `automata-dcap-zkvm` to generate an SP1 PLONK proof that verifies the TEE correctly executed the scoring computation, confirming that each component score (privacy, contribution, humanity, community) was computed honestly from real activity data and the final score was produced without tampering. This step is skipped if the proof worker is unavailable.
 
 8. **Transaction Construction:** The chain service (`chain.service.ts`) builds a CKB transaction using CCC:
    - Input: the user's current score cell
@@ -303,7 +303,7 @@ The TEE uses PostgreSQL (via TypeORM) running locally inside the TEE container. 
 
 ### Database Tables
 
-**users** -- Primary key: `identityCommitment`
+**users** (primary key: `identityCommitment`)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -318,7 +318,7 @@ The TEE uses PostgreSQL (via TypeORM) running locally inside the TEE container. 
 | `createdAt` | timestamp | Auto-generated |
 | `updatedAt` | timestamp | Auto-generated |
 
-**connections** -- Modular provider connections (unique constraint: `identityCommitment + provider`)
+**connections** (modular provider connections, unique constraint: `identityCommitment + provider`)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -333,7 +333,7 @@ The TEE uses PostgreSQL (via TypeORM) running locally inside the TEE container. 
 | `connectedAt` | timestamp | Auto-generated |
 | `updatedAt` | timestamp | Auto-generated |
 
-**notifications** -- User notification queue
+**notifications** (user notification queue)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -348,7 +348,7 @@ The TEE uses PostgreSQL (via TypeORM) running locally inside the TEE container. 
 
 ### Why PostgreSQL Instead of Sealed Storage
 
-The TEE hardware protects the entire execution environment, making application-level encryption unnecessary. PostgreSQL provides a standard relational database with proper indexing, querying, and transaction support. The modular connections table design makes it easy to add new providers without schema changes -- just insert a new row with the appropriate `provider` value.
+The TEE hardware protects the entire execution environment, making application-level encryption unnecessary. PostgreSQL provides a standard relational database with proper indexing, querying, and transaction support. The modular connections table design makes it easy to add new providers without schema changes. Just insert a new row with the appropriate `provider` value.
 
 Docker Compose runs PostgreSQL as a sidecar container alongside the TEE service:
 
@@ -542,7 +542,7 @@ The Haven lock script (`haven-lock-script`) implements a dual-path unlocking mec
 5. Compare against `user_pubkey_hash` in lock args
 
 **Permitted operations:**
-- Top up deposit balance (add CKBytes to the cell -- type script allows without proof)
+- Top up deposit balance (add CKBytes to the cell; type script allows without proof)
 - Migrate to a new cell version
 - Reclaim all CKBytes and close the cell
 
@@ -571,7 +571,7 @@ The TEE creates notifications after each scoring cycle and stores them in the `n
 2. If the score changed, `NotificationService.notifyScoreUpdate()` creates a `score_update` notification.
 3. If the tier changed, `NotificationService.notifyTierChange()` creates a `tier_change` notification.
 4. If the deposit balance is below `LOW_BALANCE_THRESHOLD`, `NotificationService.notifyLowBalance()` creates a `deposit_low` notification.
-5. Notification failures never break the scoring pipeline -- they are caught and logged.
+5. Notification failures never break the scoring pipeline; they are caught and logged.
 
 ### Notification API
 
@@ -610,16 +610,16 @@ The TEE exposes `GET /api/health` returning real runtime status:
 
 ### Health Status Logic
 
-- `online` -- Enclave ID resolved from dstack `info()`. TEE is running inside a genuine enclave.
-- `degraded` -- Process is running but enclave ID is unknown (running outside enclave, e.g. local development).
-- `offline` -- Service is unreachable.
+- `online`: Enclave ID resolved from dstack `info()`. TEE is running inside a genuine enclave.
+- `degraded`: Process is running but enclave ID is unknown (running outside enclave, e.g. local development).
+- `offline`: Service is unreachable.
 
 ### Data Sources
 
-- `enclaveId` -- Retrieved from dstack `info()` on module initialization (instanceId or appId).
-- `lastAttestation` -- Tracked by the `AttestationService` each time a DCAP attestation is generated.
-- `protocolVersion` -- Read from `package.json` on module initialization.
-- `uptime` -- `process.uptime()` in seconds.
+- `enclaveId`: Retrieved from dstack `info()` on module initialization (instanceId or appId).
+- `lastAttestation`: Tracked by the `AttestationService` each time a DCAP attestation is generated.
+- `protocolVersion`: Read from `package.json` on module initialization.
+- `uptime`: `process.uptime()` in seconds.
 
 The SDK's `HavenTeeClient.getHealth()` method fetches this data. The dashboard displays it in the footer and on the Identity page.
 
@@ -656,7 +656,7 @@ Score Cell Updated
 | Layer | Guarantee |
 |-------|-----------|
 | **Phala TDX TEE** | Code executed in an isolated enclave. Account linkages stored in TEE-local PostgreSQL, inaccessible to external parties. DCAP attestation cryptographically proves the computation ran inside a genuine Intel TDX enclave and binds the scoring result to that environment. |
-| **SP1 Proof** | The ZK proof verifies that the TEE ran the correct scoring computation -- that the scoring program (identified by program hash H) was executed honestly, each component score (privacy, contribution, humanity, community) was computed correctly from the collected activity data, and the final score was produced without tampering. |
+| **SP1 Proof** | The ZK proof verifies that the TEE ran the correct scoring computation, confirming that the scoring program (identified by program hash H) was executed honestly, each component score (privacy, contribution, humanity, community) was computed correctly from the collected activity data, and the final score was produced without tampering. |
 | **CKB Type Script** | Checks the SP1 proof on-chain. If the proof is valid (meaning the scoring computation was done correctly), the type script allows the update after also verifying the program hash matches the Registry, the identity is unchanged, the epoch incremented, the fee was deducted correctly, the breakdown sums to the total, and the expiry is set correctly. If the proof is invalid, the score update is rejected. |
 | **CKB Lock Script** | The TEE can only update through the type-script-guarded path with a valid TEE signature. The user always retains ownership via their private key. |
 
@@ -761,7 +761,7 @@ The Haven SDK (`@haven-protocol/ckb-sdk`) is structured as a single package with
 
 1. **CCC as the only CKB dependency.** The SDK uses `@ckb-ccc/core` exclusively.
 
-2. **No Haven server dependency.** All score reads go directly to CKB. The TEE client is only needed for identity registration, OAuth, notifications, and health -- not for reading scores.
+2. **No Haven server dependency.** All score reads go directly to CKB. The TEE client is only needed for identity registration, OAuth, notifications, and health, not for reading scores.
 
 3. **React is optional.** The core `HavenClient` works in any TypeScript environment. React hooks are available at the `/react` sub-path and have `react` as an optional peer dependency.
 

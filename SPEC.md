@@ -10,13 +10,13 @@ Technical Specification & Architecture
 
 # **1. Executive Summary**
 
-Haven Protocol is a privacy reputation and incentivized discovery layer built natively on Nervos CKB. Users earn a public, non-transferable Haven Score based on their real activity across Twitter, GitHub, and on-chain ecosystems. The score is fully visible -- it appears on public dashboards, leaderboards, and is readable by any dApp on CKB. What is never visible is the identity behind the score.
+Haven Protocol is a privacy reputation and incentivized discovery layer built natively on Nervos CKB. Users earn a public, non-transferable Haven Score based on their real activity across Twitter, GitHub, and on-chain ecosystems. The score is fully visible: it appears on public dashboards, leaderboards, and is readable by any dApp on CKB. What is never visible is the identity behind the score.
 
-When users connect their Twitter, GitHub, and wallets to Haven, those account linkages are stored exclusively inside a Phala Network TEE (Trusted Execution Environment) in a PostgreSQL database running locally within the TEE container. Nobody outside the TEE -- not Haven contributors, not any external database, not on-chain observers -- can ever know which Twitter account, GitHub profile, or set of wallets belongs to a given Haven Score. The TEE hardware protects the environment, and the data never leaves.
+When users connect their Twitter, GitHub, and wallets to Haven, those account linkages are stored exclusively inside a Phala Network TEE (Trusted Execution Environment) in a PostgreSQL database running locally within the TEE container. Nobody outside the TEE (not Haven contributors, not any external database, not on-chain observers) can ever know which Twitter account, GitHub profile, or set of wallets belongs to a given Haven Score. The TEE hardware protects the environment, and the data never leaves.
 
 There is no traditional backend. The Phala TEE handles all computation, all proof requests, and all on-chain settlement. The proof worker is a separate SP1 prover service that the TEE calls to generate proofs and returns results to. The TEE then submits CKB transactions directly using CCC.
 
-| Core Design | Public score. Private identity. No backend. The TEE computes your score from real activity data, and an SP1 ZK proof verifies that the TEE executed the scoring computation correctly -- computing each component score (privacy, contribution, humanity, community) honestly and producing the final score without tampering. The CKB type script checks this proof before any score update is allowed. |
+| Core Design | Public score. Private identity. No backend. The TEE computes your score from real activity data, and an SP1 ZK proof verifies that the TEE executed the scoring computation correctly, computing each component score (privacy, contribution, humanity, community) honestly and producing the final score without tampering. The CKB type script checks this proof before any score update is allowed. |
 | :---: | :---- |
 
 # **2. The Privacy Model**
@@ -31,7 +31,7 @@ Haven's privacy model is specific and worth stating clearly upfront, because it 
 
 * The score tier (Observer, Initiate, Trusted, Guardian, Sovereign)
 
-* The identity commitment (a hash of the user's CKB public key -- not the key itself)
+* The identity commitment (a hash of the user's CKB public key, not the key itself)
 
 * The score epoch and expiry
 
@@ -51,9 +51,9 @@ Haven's privacy model is specific and worth stating clearly upfront, because it 
 
 ## **2.3 How Privacy Is Enforced**
 
-All account linkages are stored in a PostgreSQL database running locally inside the Phala TEE container. The TEE hardware ensures that no external process -- not even the host operating system -- can access this data. OAuth tokens, account IDs, and wallet-to-identity mappings live exclusively in the TEE's local database. The TEE reads connected accounts, runs the scoring computation, and produces a score and attestation. No Haven database outside the TEE, no logs, no API server ever sees which accounts a user connected.
+All account linkages are stored in a PostgreSQL database running locally inside the Phala TEE container. The TEE hardware ensures that no external process, not even the host operating system, can access this data. OAuth tokens, account IDs, and wallet-to-identity mappings live exclusively in the TEE's local database. The TEE reads connected accounts, runs the scoring computation, and produces a score and attestation. No Haven database outside the TEE, no logs, no API server ever sees which accounts a user connected.
 
-| The Beauty of Haven | A user can have a public Haven Score of 920, sit at the top of the leaderboard, and get hired through the Shadow Job Board -- all without anyone knowing their real name, Twitter handle, GitHub username, or which wallets they own. |
+| The Beauty of Haven | A user can have a public Haven Score of 920, sit at the top of the leaderboard, and get hired through the Shadow Job Board, all without anyone knowing their real name, Twitter handle, GitHub username, or which wallets they own. |
 | :---: | :---- |
 
 # **3. Why CKB**
@@ -108,7 +108,7 @@ Phala Network is chosen specifically because it supports Intel TDX with DCAP (Da
 
 The TEE uses PostgreSQL (via TypeORM) running locally inside the TEE container. The database is co-located with the service via Docker Compose. Three tables store all persistent data:
 
-**users** -- Registered identities
+**users:** Registered identities
 
 | Column | Type | Description |
 | :---- | :---- | :---- |
@@ -123,7 +123,7 @@ The TEE uses PostgreSQL (via TypeORM) running locally inside the TEE container. 
 | `createdAt` | timestamp | Auto-generated |
 | `updatedAt` | timestamp | Auto-generated |
 
-**connections** -- Modular provider connections (one row per provider per user)
+**connections:** Modular provider connections (one row per provider per user)
 
 | Column | Type | Description |
 | :---- | :---- | :---- |
@@ -138,9 +138,9 @@ The TEE uses PostgreSQL (via TypeORM) running locally inside the TEE container. 
 | `connectedAt` | timestamp | Auto-generated |
 | `updatedAt` | timestamp | Auto-generated |
 
-Unique constraint: `(identityCommitment, provider)` -- one connection per provider per user.
+Unique constraint: `(identityCommitment, provider)`, allowing one connection per provider per user.
 
-**notifications** -- User notification queue
+**notifications:** User notification queue
 
 | Column | Type | Description |
 | :---- | :---- | :---- |
@@ -153,7 +153,7 @@ Unique constraint: `(identityCommitment, provider)` -- one connection per provid
 | `metadata` | jsonb (nullable) | Structured data (scores, tiers, balances, etc.) |
 | `createdAt` | timestamp | Auto-generated |
 
-Adding a new provider (e.g. LinkedIn, Discord, Telegram) requires no schema change -- just insert a new row in the `connections` table with the appropriate `provider` value.
+Adding a new provider (e.g. LinkedIn, Discord, Telegram) requires no schema change. Just insert a new row in the `connections` table with the appropriate `provider` value.
 
 ### **4.1.2 TEE Modules**
 
@@ -184,7 +184,7 @@ The SP1 proof worker is a stateless Rust service (Axum HTTP server) that generat
 
 * DCAP collaterals are fetched from Automata's on-chain PCCS contracts on Ethereum (Sepolia for testnet, mainnet for production) via a standard Ethereum RPC endpoint.
 
-* The proof worker can be run by Haven or by any third party -- it has no privileged access.
+* The proof worker can be run by Haven or by any third party, as it has no privileged access.
 
 * Runs on port 3001 by default.
 
@@ -233,9 +233,9 @@ React is an optional peer dependency. The core client works in any TypeScript en
 
 Two CKB scripts deployed on testnet with type-id (upgradable):
 
-* **haven-type-script** -- Validates all score cell state transitions: creation (score=0, valid deposit), update (SP1 proof verification, public inputs matching, fee deduction, epoch increment), top-up (deposit_balance increase with everything else identical -- no proof required), and destruction (always allowed).
+* **haven-type-script:** Validates all score cell state transitions: creation (score=0, valid deposit), update (SP1 proof verification, public inputs matching, fee deduction, epoch increment), top-up (deposit_balance increase with everything else identical, no proof required), and destruction (always allowed).
 
-* **haven-lock-script** -- Dual-path lock: TEE update path (0x00) verifies TEE secp256k1 signature and ensures type script is present on the output cell. User direct path (0x01) verifies user secp256k1 signature for top-ups, migration, or cell closure. Uses dynamic loading of the CKB system secp256k1 shared library.
+* **haven-lock-script:** Dual-path lock: TEE update path (0x00) verifies TEE secp256k1 signature and ensures type script is present on the output cell. User direct path (0x01) verifies user secp256k1 signature for top-ups, migration, or cell closure. Uses dynamic loading of the CKB system secp256k1 shared library.
 
 # **5. End-to-End Flow**
 
@@ -272,7 +272,7 @@ Two CKB scripts deployed on testnet with type-id (upgradable):
 
 13. TEE calls the SP1 proof worker with the DCAP attestation (if available).
 
-14. SP1 proof worker generates a ZK proof that verifies the TEE correctly executed the scoring computation -- that each component score was computed honestly from the collected activity data, producing the final score without tampering -- and returns the proof to the TEE (if available).
+14. SP1 proof worker generates a ZK proof that verifies the TEE correctly executed the scoring computation, confirming that each component score was computed honestly from the collected activity data and that the final score was produced without tampering, then returns the proof to the TEE (if available).
 
 15. TEE constructs a CKB transaction using CCC: input is the current score cell, output is the new score cell with updated score (if proof is available and score cell outpoint exists).
 
@@ -308,7 +308,7 @@ Steps 12-16 are skipped gracefully when the proof worker is unavailable. The sco
 
 * Phala Network provides managed TDX TEE infrastructure with DCAP attestation support
 
-* DCAP (Data Center Attestation Primitives) is the Intel standard for verifiable TEE attestations -- no EPID, no Intel IAS dependency
+* DCAP (Data Center Attestation Primitives) is the Intel standard for verifiable TEE attestations, with no EPID and no Intel IAS dependency
 
 * Phala's DCAP attestations are structured and verifiable by SP1 proving systems
 
@@ -326,7 +326,7 @@ Steps 12-16 are skipped gracefully when the proof worker is unavailable. The sco
 
 * Succinct maintains SP1 as production-grade infrastructure used by major protocols
 
-* Proof generation is async and batched -- acceptable for Haven's interval-based update model
+* Proof generation is async and batched, which is acceptable for Haven's interval-based update model
 
 ## **6.3 Proof Worker Implementation**
 
@@ -344,26 +344,26 @@ The proof worker uses Automata's `automata-dcap-zkvm` library (v1.1.1-alpha-3) w
 
 ## **6.4 What the SP1 Proof Attests**
 
-| SP1 Proof Statement | The ZK proof (SP1 PLONK) verifies that the TEE ran the correct scoring computation for user identity commitment I during epoch N -- that it executed the scoring program (identified by program hash H) honestly inside a genuine Phala TDX enclave, computed each component score (privacy, contribution, humanity, community) correctly from the collected activity data, and produced the final score S without tampering. The DCAP attestation embedded in the proof confirms the computation ran in a genuine TEE. |
+| SP1 Proof Statement | The ZK proof (SP1 PLONK) verifies that the TEE ran the correct scoring computation for user identity commitment I during epoch N, confirming that it executed the scoring program (identified by program hash H) honestly inside a genuine Phala TDX enclave, computed each component score (privacy, contribution, humanity, community) correctly from the collected activity data, and produced the final score S without tampering. The DCAP attestation embedded in the proof confirms the computation ran in a genuine TEE. |
 | :---: | :---- |
 
 Public inputs verified by the CKB type script:
 
-* Program hash H -- identifies the exact scoring program version
+* Program hash H: identifies the exact scoring program version
 
-* User identity commitment I -- Blake2b hash of CKB public key
+* User identity commitment I: Blake2b hash of CKB public key
 
-* Previous score -- must match the consumed input score cell
+* Previous score: must match the consumed input score cell
 
 * New score S
 
-* Epoch number N -- prevents replay of old proofs
+* Epoch number N: prevents replay of old proofs
 
 * Score breakdown (privacy, contribution, humanity, community)
 
-* Previous epoch -- must match the consumed input score cell
+* Previous epoch: must match the consumed input score cell
 
-Everything else -- account linkages, raw activity, intermediate scores -- is private input inside the TEE and never appears in the proof's public inputs.
+Everything else (account linkages, raw activity, intermediate scores) is private input inside the TEE and never appears in the proof's public inputs.
 
 ## **6.5 Program Hash Versioning**
 
@@ -373,7 +373,7 @@ The Haven Registry cell on CKB stores the current valid scoring program hash. Wh
 
 ## **7.1 Haven Score Cell**
 
-Each user has exactly one Haven Score cell on CKB. Score and all breakdown fields are public -- readable by anyone querying CKB.
+Each user has exactly one Haven Score cell on CKB. Score and all breakdown fields are public, readable by anyone querying CKB.
 
 | Field | Size | Description |
 | :---- | :---- | :---- |
@@ -440,7 +440,7 @@ The Phala TEE can unlock and update the score cell, but only under strict condit
 
 * The output cell epoch must be greater than the input cell epoch
 
-* Only the update fee can leave deposit_balance -- no other CKBytes can exit
+* Only the update fee can leave deposit_balance; no other CKBytes can exit
 
 The TEE cannot write an arbitrary score. It cannot drain the cell. It cannot change the identity. The SP1 proof is the only gate.
 
@@ -456,7 +456,7 @@ The user can always unlock their score cell with their own CKB private key (stan
 
 The lock script uses dynamic loading of the CKB system secp256k1 shared library via `CKBDLContext` for signature verification. The transaction must include the secp256k1 code cell and data cell (1 MB precomputed tables) as cell deps.
 
-| Ownership Guarantee | If Haven Protocol shut down tomorrow, every user could reclaim their CKBytes with their private key. The TEE update path is write access for score updates only -- it is not ownership. The user always holds the keys. |
+| Ownership Guarantee | If Haven Protocol shut down tomorrow, every user could reclaim their CKBytes with their private key. The TEE update path is write access for score updates only; it is not ownership. The user always holds the keys. |
 | :---: | :---- |
 
 # **9. Fee Model: Pre-Deposit**
@@ -503,7 +503,7 @@ The dashboard uses CCC wallet connect for CKB wallet integration, supporting mul
 
 ## **10.3 Leaderboard Query**
 
-The leaderboard reads all Haven Score cells directly from CKB -- no API, no server:
+The leaderboard reads all Haven Score cells directly from CKB, with no API and no server:
 
 ```ts
 const cells = await client.findCells({
@@ -628,14 +628,14 @@ The scoring service processes each user through this pipeline:
 1. **Retrieve user record** from the PostgreSQL database (identity commitment, connected accounts).
 2. **Fetch connection tokens** from the `connections` table for each provider.
 3. **Collect activity in parallel** from three collectors:
-   - **Twitter collector** -- Twitter API for privacy-related activity (only if Twitter is connected with valid token)
-   - **GitHub collector** -- GitHub API for contribution history (only if GitHub is connected with valid token)
-   - **On-chain collector** -- CKB indexer for on-chain activity (always collected; supports any lock script type: secp256k1, omnilock, JoyID)
+   - **Twitter collector:** Twitter API for privacy-related activity (only if Twitter is connected with valid token)
+   - **GitHub collector:** GitHub API for contribution history (only if GitHub is connected with valid token)
+   - **On-chain collector:** CKB indexer for on-chain activity (always collected; supports any lock script type: secp256k1, omnilock, JoyID)
 4. **Run four scoring formulas** over the collected activity:
-   - `privacy-hygiene.ts` -- Address rotation (40%), transaction diversity (30%), total transactions (20%), account age (10%). Uses sigmoid normalization with configurable half-saturation constants.
-   - `contribution.ts` -- GitHub commits, governance participation (max 300)
-   - `humanity.ts` -- Sybil resistance, account age, cross-platform consistency (max 200)
-   - `community.ts` -- Platform participation (max 100)
+   - `privacy-hygiene.ts`: Address rotation (40%), transaction diversity (30%), total transactions (20%), account age (10%). Uses sigmoid normalization with configurable half-saturation constants.
+   - `contribution.ts`: GitHub commits, governance participation (max 300)
+   - `humanity.ts`: Sybil resistance, account age, cross-platform consistency (max 200)
+   - `community.ts`: Platform participation (max 100)
 5. **Sum components** to produce total score (0-1000).
 
 Scores are rebalanced for CKB-only scoring: users without social accounts connected still receive meaningful scores from on-chain activity. Social connections enhance the score but are not required.
@@ -663,10 +663,10 @@ The scoring formula is intentionally written as normal TypeScript code inside th
 
 The TEE creates notifications after each scoring cycle:
 
-* **Score update** -- Created when a user's score changes (includes old score, new score, delta, and epoch).
-* **Tier change** -- Created when a user's tier changes (includes old tier and new tier).
-* **Low balance** -- Created when deposit balance drops below the configured threshold (includes balance in CKB).
-* **System** -- Generic system messages.
+* **Score update:** Created when a user's score changes (includes old score, new score, delta, and epoch).
+* **Tier change:** Created when a user's tier changes (includes old tier and new tier).
+* **Low balance:** Created when deposit balance drops below the configured threshold (includes balance in CKB).
+* **System:** Generic system messages.
 
 Notifications are stored in the `notifications` PostgreSQL table and served via the TEE's `/api/notifications` endpoints. The SDK's `useNotifications` React hook polls the unread count every 30 seconds and fetches the full notification list on demand. The dashboard displays a bell icon with an unread count badge.
 
@@ -696,7 +696,7 @@ The dashboard footer and identity page display this data. The SDK's `HavenTeeCli
 
 ## **16.1 Public Leaderboard**
 
-A fully public leaderboard showing all Haven Score cells sorted by score. Identity commitments are shown -- not real names, Twitter handles, or wallet addresses. Users can optionally link a pseudonym to their identity commitment if they choose to be recognizable, but this is never required.
+A fully public leaderboard showing all Haven Score cells sorted by score. Identity commitments are shown, not real names, Twitter handles, or wallet addresses. Users can optionally link a pseudonym to their identity commitment if they choose to be recognizable, but this is never required.
 
 ## **16.2 Reputation-Based Funding Pools**
 
@@ -712,7 +712,7 @@ Anonymous talent matching. Employers post opportunity cells with score tier requ
 
 ## **16.5 Governance**
 
-Voting weight derived from Haven Score. Votes are CKB transactions referencing the score cell. The governance script reads the score and applies the correct weight. One identity commitment maps to one score -- splitting identities provides no advantage.
+Voting weight derived from Haven Score. Votes are CKB transactions referencing the score cell. The governance script reads the score and applies the correct weight. One identity commitment maps to one score, so splitting identities provides no advantage.
 
 # **17. Tokenomics**
 
@@ -739,30 +739,30 @@ Haven Protocol does not launch a new chain token. Incentives use CKBytes and Hav
 
 # **19. Grant Positioning**
 
-* First Phala TEE + SP1 verified application on CKB -- demonstrates production-grade confidential compute integrated with CKB's RISC-V proof verification.
+* First Phala TEE + SP1 verified application on CKB. Demonstrates production-grade confidential compute integrated with CKB's RISC-V proof verification.
 
-* No traditional backend -- the TEE handles computation and on-chain settlement directly. A genuinely novel architecture for CKB.
+* No traditional backend. The TEE handles computation and on-chain settlement directly. A genuinely novel architecture for CKB.
 
-* Public score, private identity -- a new privacy primitive that no other reputation system has shipped. The score is useful precisely because it is public, while the identity behind it is mathematically protected.
+* Public score, private identity: a new privacy primitive that no other reputation system has shipped. The score is useful precisely because it is public, while the identity behind it is mathematically protected.
 
-* Composable ecosystem infrastructure -- the Haven SDK makes reputation a public good any CKB dApp can use without any Haven dependency.
+* Composable ecosystem infrastructure. The Haven SDK makes reputation a public good any CKB dApp can use without any Haven dependency.
 
-* Emerging markets focus -- pseudonymous reputation for users in Africa and other regions where privacy is a genuine need, not a preference.
+* Emerging markets focus: pseudonymous reputation for users in Africa and other regions where privacy is a genuine need, not a preference.
 
-* Credible technical team -- prior work: Groth16 implementation, shielded UTXO pool, ZK Mastermind game, Obscura and Sukura repos.
+* Credible technical team. Prior work: Groth16 implementation, shielded UTXO pool, ZK Mastermind game, Obscura and Sukura repos.
 
-| Grant Narrative | Haven Protocol is the first system on CKB where a TEE computes reputation, SP1 proves it, and the chain verifies it -- with no backend, no trusted operator, and no way to fake a score. Public reputation. Private identity. Built on CKB. |
+| Grant Narrative | Haven Protocol is the first system on CKB where a TEE computes reputation, SP1 proves it, and the chain verifies it, with no backend, no trusted operator, and no way to fake a score. Public reputation. Private identity. Built on CKB. |
 | :---: | :---- |
 
 # **20. Security Considerations**
 
 ## **20.1 SP1 as Trust Anchor**
 
-The system does not require trusting the Phala TEE hardware blindly. The SP1 ZK proof verifies that the TEE actually executed the scoring program correctly -- that it computed each component score (privacy, contribution, humanity, community) honestly from real activity data and produced the final score without tampering. If the computation was altered or the attestation was forged, the SP1 proof is invalid, and the CKB type script rejects the score update. The cryptographic proof, not the hardware alone, is the trust anchor.
+The system does not require trusting the Phala TEE hardware blindly. The SP1 ZK proof verifies that the TEE actually executed the scoring program correctly, confirming that it computed each component score (privacy, contribution, humanity, community) honestly from real activity data and produced the final score without tampering. If the computation was altered or the attestation was forged, the SP1 proof is invalid, and the CKB type script rejects the score update. The cryptographic proof, not the hardware alone, is the trust anchor.
 
 ## **20.2 TEE-Local PostgreSQL Storage**
 
-Account linkages (OAuth tokens, wallet signatures) are stored in a PostgreSQL database running locally inside the Phala TEE container. The TEE hardware ensures that no external process can access this data -- not even the host operating system. Docker Compose co-locates the database with the TEE service, and data is persisted to a volume within the TEE's protected environment.
+Account linkages (OAuth tokens, wallet signatures) are stored in a PostgreSQL database running locally inside the Phala TEE container. The TEE hardware ensures that no external process can access this data, not even the host operating system. Docker Compose co-locates the database with the TEE service, and data is persisted to a volume within the TEE's protected environment.
 
 ## **20.3 Program Hash Pinning**
 
@@ -786,10 +786,10 @@ The type script's `is_topup_only` check ensures that user top-up transactions ca
 
 # **21. Summary**
 
-Haven Protocol on CKB is a privacy reputation system with a clean and honest architecture. The Haven Score is fully public -- on the leaderboard, readable by dApps, verifiable by anyone. The identity behind the score is fully private -- known only inside the Phala TEE, stored in a local PostgreSQL database that the TEE hardware protects.
+Haven Protocol on CKB is a privacy reputation system with a clean and honest architecture. The Haven Score is fully public: on the leaderboard, readable by dApps, verifiable by anyone. The identity behind the score is fully private, known only inside the Phala TEE, stored in a local PostgreSQL database that the TEE hardware protects.
 
 There is no traditional backend. The Phala TEE collects activity, runs scoring every 24 hours (every 5 minutes during testing), requests SP1 proofs, and submits CKB transactions directly. The SP1 proof worker is stateless. The CKB type script is the final authority. If the proof does not verify, the score does not update.
 
 Users connect their accounts once. Everything else is automatic. Scores update on a configurable schedule. Fees come from their pre-deposited CKBytes. They own their score cell and can always reclaim their CKBytes with their private key. The notification system keeps users informed of score changes, tier changes, and low balances.
 
-The Haven SDK makes the score composable across CKB. dApps read scores directly from the chain. No Haven server. No API key. No central dependency. This is infrastructure -- built once, used by the entire privacy ecosystem on CKB.
+The Haven SDK makes the score composable across CKB. dApps read scores directly from the chain. No Haven server. No API key. No central dependency. This is infrastructure, built once and used by the entire privacy ecosystem on CKB.

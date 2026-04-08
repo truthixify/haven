@@ -1,6 +1,6 @@
 # Haven Protocol SDK
 
-TypeScript SDK for dApps to integrate Haven Protocol on CKB. Reads and verifies Haven Scores directly from the chain via CCC -- no Haven server required for on-chain reads.
+TypeScript SDK for dApps to integrate Haven Protocol on CKB. Reads and verifies Haven Scores directly from the chain via CCC, with no Haven server required for on-chain reads.
 
 **Package:** `@haven-protocol/ckb-sdk`
 
@@ -14,7 +14,7 @@ TypeScript SDK for dApps to integrate Haven Protocol on CKB. Reads and verifies 
 | `@haven-protocol/ckb-sdk/contracts` | Script builders, cell builders, deploy info |
 | `@haven-protocol/ckb-sdk/attestations` | Off-chain attestation generation |
 
-## Core API -- HavenClient
+## Core API: HavenClient
 
 All reads are pure on-chain. Wraps a CCC client instance.
 
@@ -36,17 +36,17 @@ const registry = await haven.getRegistryConfig();
 
 **Methods:**
 
-- `getScore(lockHash)` -- fetch a user's Haven Score by lock script hash
-- `getMyScore(signer)` -- fetch the connected wallet's score via CCC signer
-- `verifyThreshold(lockHash, minScore)` -- check if score meets a minimum threshold
-- `verifyTier(lockHash, tier)` -- check if score qualifies for a tier (Observer, Initiate, Trusted, Guardian, Sovereign)
-- `getLeaderboard(limitOrOptions)` -- fetch sorted leaderboard (by score or any component, asc/desc)
-- `generateScoreAttestation(lockHash, minScore)` -- generate an off-chain attestation
-- `getScoreByIdentity(identityCommitment)` -- look up score by identity commitment
-- `getAllScoreCells()` -- fetch all live score cells on-chain
-- `getRegistryConfig()` -- fetch protocol configuration from the registry cell
+- `getScore(lockHash)`: fetch a user's Haven Score by lock script hash
+- `getMyScore(signer)`: fetch the connected wallet's score via CCC signer
+- `verifyThreshold(lockHash, minScore)`: check if score meets a minimum threshold
+- `verifyTier(lockHash, tier)`: check if score qualifies for a tier (Observer, Initiate, Trusted, Guardian, Sovereign)
+- `getLeaderboard(limitOrOptions)`: fetch sorted leaderboard (by score or any component, asc/desc)
+- `generateScoreAttestation(lockHash, minScore)`: generate an off-chain attestation
+- `getScoreByIdentity(identityCommitment)`: look up score by identity commitment
+- `getAllScoreCells()`: fetch all live score cells on-chain
+- `getRegistryConfig()`: fetch protocol configuration from the registry cell
 
-## TEE Client -- HavenTeeClient
+## TEE Client: HavenTeeClient
 
 HTTP client for the Haven TEE service. Handles OAuth flows, identity registration, and notifications.
 

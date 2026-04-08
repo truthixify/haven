@@ -17,7 +17,7 @@ ckb/
 
 ## Type Script (`haven-type-script`)
 
-Validates all operations on Haven Score cells. On score updates, the type script verifies the SP1 ZK proof, which guarantees that the TEE correctly executed the scoring computation -- computing each component score (privacy, contribution, humanity, community) honestly from real activity data and producing the final score without tampering. If the proof is invalid, the score cell cannot be updated.
+Validates all operations on Haven Score cells. On score updates, the type script verifies the SP1 ZK proof, which guarantees that the TEE correctly executed the scoring computation, computing each component score (privacy, contribution, humanity, community) honestly from real activity data and producing the final score without tampering. If the proof is invalid, the score cell cannot be updated.
 
 - **Creation:** score must be 0, deposit >= minimum from registry, identity commitment set
 - **Update (score change):** verifies the SP1 PLONK proof (which proves correct score computation by the TEE) against public inputs, checks program hash matches registry (current or previous during grace period), validates epoch increment, fee deduction, breakdown sums to total score
