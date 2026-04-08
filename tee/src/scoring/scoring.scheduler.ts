@@ -224,6 +224,14 @@ export class ScoringScheduler {
     // Get previous score from DB (not chain — chain may not be updated yet)
     const previousScore = (user as any).lastComputedScore ?? 0;
 
+    // Skip proof generation and chain submission if score hasn't changed
+    if (scoringResult.score === previousScore && previousScore > 0) {
+      this.logger.log(
+        `${shortId}... score unchanged (${scoringResult.score}), skipping proof/chain`,
+      );
+      return 'skipped';
+    }
+
     // Steps 3-5: Attestation, proof, and chain submission
     let chainSubmitted = false;
 
@@ -333,6 +341,11 @@ export class ScoringScheduler {
       if (!txHash) {
         throw new Error('Chain submission returned null — transaction failed');
       }
+
+      // Update the stored outpoint to the new cell location
+      await this.databaseService.updateUserRecord(identity, {
+        scoreCellOutpoint: { txHash, index: 0 },
+      });
     } else {
       throw new Error('No score cell outpoint — cannot submit to chain');
     }
