@@ -26,6 +26,15 @@ jobs:
         working-directory: sdk
         run: npm run build
 
+      - name: Auto bump patch version
+        working-directory: sdk
+        run: |
+          NPM_VERSION=$(npm view @haven-protocol-ckb/sdk version 2>/dev/null || echo "0.0.0")
+          # Bump patch: 0.2.0 -> 0.2.1
+          NEW_VERSION=$(node -e "const [a,b,c]=('$NPM_VERSION').split('.').map(Number); console.log(a+'.'+b+'.'+(c+1))")
+          npm version $NEW_VERSION --no-git-tag-version
+          echo "Publishing v$NEW_VERSION"
+
       - name: Publish
         working-directory: sdk
         run: npm publish --access public
