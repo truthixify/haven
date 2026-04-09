@@ -50,7 +50,7 @@ export default function Ecosystem() {
                 Active
               </span>
             </div>
-            <h5 className="text-xl font-bold mb-1">ZK Engineer</h5>
+            <h5 className="text-xl font-bold mb-1">Privacy Engineer</h5>
             <p className="text-xs text-on-surface-variant mb-6 font-mono">
               ID: 0x92f...a12 |{' '}
               <span className="italic text-primary/70">Masked Entity</span>
@@ -132,7 +132,7 @@ export default function Ecosystem() {
             <div className="space-y-3 mb-8">
               <div className="flex justify-between text-xs">
                 <span className="text-on-surface-variant">Required Tier</span>
-                <span className="text-primary font-bold">Obsidian</span>
+                <span className="text-primary font-bold">Trusted</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-on-surface-variant">Compensation</span>
@@ -164,7 +164,7 @@ export default function Ecosystem() {
           </div>
           <div className="flex items-center gap-2 text-on-surface-variant text-xs italic">
             <span className="material-symbols-outlined text-sm">info</span>
-            Pools auto-distribute based on weekly cryptographic proofs.
+            Pools auto-distribute based on weekly TEE-verified score updates.
           </div>
         </div>
 

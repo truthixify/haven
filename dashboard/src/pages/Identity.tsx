@@ -1,6 +1,6 @@
 import { ccc } from '@ckb-ccc/connector-react';
 import { useState } from 'react';
-import { useAuth, getTwitterAuthUrl, getGithubAuthUrl } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { formatRelativeTime } from '../utils/formatRelativeTime';
 import { config } from '../config';
@@ -73,7 +73,7 @@ export default function Identity() {
           </h2>
           <p className="text-on-surface-variant max-w-2xl text-base md:text-lg font-light leading-relaxed">
             Aggregating your digital reputation without compromising your
-            anonymity. Powered by Phala Network TEEs on CKB.
+            anonymity. Powered by TEEs and ZKPs on CKB.
           </p>
         </header>
 
@@ -176,19 +176,18 @@ export default function Identity() {
               shield_lock
             </span>
             <h4 className="font-headline text-xl font-bold mb-4">
-              Zero-Knowledge Proof
+              TEE Sealed Storage
             </h4>
             <p className="text-sm text-on-surface-variant leading-relaxed">
-              Every connection generates a unique ZK-proof within a Trusted
-              Execution Environment (TEE). We never store your raw handles or
-              passwords.
+              Every connection is encrypted and stored exclusively inside the
+              Phala TEE. Your handles and tokens never leave the enclave.
             </p>
             <div className="mt-8 flex gap-2">
               <span className="px-2 py-1 bg-surface-container-low text-[10px] font-mono rounded">
                 TEE-v2.1
               </span>
               <span className="px-2 py-1 bg-surface-container-low text-[10px] font-mono rounded">
-                PHALA-SGX
+                PHALA-TDX
               </span>
             </div>
           </div>

@@ -123,7 +123,7 @@ export default function Dashboard() {
             </div>
             <p className="max-w-md text-[#cbc3d7] text-sm leading-relaxed">
               {needsIdentity
-                ? 'Sign a message with your wallet to create your cryptographic identity. This links your wallet to the Haven Protocol TEE.'
+                ? 'Sign a message with your wallet to create your cryptographic identity. This links your wallet to Haven Protocol via the Phala TEE.'
                 : 'Deposit CKB to create your score cell on-chain. This initializes your reputation on the Sovereign Privacy Layer.'}
             </p>
             {isAuthLoading && (
@@ -352,7 +352,7 @@ export default function Dashboard() {
         description={
           lastTxHash
             ? 'Waiting for on-chain confirmation of your transaction.'
-            : 'Generating cryptographic proofs for the requested state transition.'
+            : 'Verifying computation through the Phala TEE and submitting to CKB.'
         }
         steps={
           lastTxHash

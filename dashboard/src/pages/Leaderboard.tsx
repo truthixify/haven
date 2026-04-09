@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useLeaderboard } from '../hooks/useLeaderboard';
-import { getTierForScore } from '@haven-protocol-ckb/sdk';
 import type { LeaderboardEntry } from '@haven-protocol-ckb/sdk';
 import ActionLoadingOverlay from '../components/loading/ActionLoadingOverlay';
 
@@ -36,7 +35,7 @@ export default function Leaderboard() {
           Global <span className="text-primary">Leaderboard</span>
         </h2>
         <p className="text-on-surface-variant text-sm md:text-base max-w-2xl font-light">
-          Public scores, private identities. Verified through cryptographic zero-knowledge proofs.
+          Public scores, private identities. Verified through TEE attestation and on-chain proofs.
         </p>
       </section>
 

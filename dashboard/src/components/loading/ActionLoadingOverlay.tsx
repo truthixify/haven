@@ -14,13 +14,13 @@ interface ActionLoadingOverlayProps {
 
 const defaultSteps: ProcessingStep[] = [
   { label: 'Phala TEE Attesting', status: 'verified' },
-  { label: 'SP1 Proof Generating', status: 'processing' },
+  { label: 'Submitting to CKB', status: 'processing' },
 ];
 
 export default function ActionLoadingOverlay({
   isOpen,
   title = 'Securing Protocol Action',
-  description = 'Generating cryptographic proofs for the requested state transition.',
+  description = 'Processing your request through the Phala TEE.',
   steps = defaultSteps,
 }: ActionLoadingOverlayProps) {
   if (!isOpen) return null;
