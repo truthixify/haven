@@ -87,7 +87,7 @@ export const COMPONENT_MAX = {
 // ---------------------------------------------------------------------------
 
 /** Minimum CKBytes for cell capacity (127 bytes of data) */
-export const MIN_CELL_CAPACITY = BigInt(200_0000_0000); // 200 CKBytes in shannons
+export const MIN_CELL_CAPACITY = BigInt(1000_0000_0000); // 1000 CKBytes in shannons
 
 /** Recommended initial deposit buffer */
 export const RECOMMENDED_DEPOSIT = BigInt(500_0000_0000); // 500 CKBytes in shannons

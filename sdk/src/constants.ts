@@ -126,8 +126,8 @@ export const REGISTRY_CELL_SIZE = 126;
 /** Default score expiry window in blocks (~24 hours at 4s per block = 21600 blocks). */
 export const DEFAULT_EPOCH_DURATION = 21600;
 
-/** Minimum deposit in shannons (200 CKBytes = 200 * 10^8 shannons). */
-export const DEFAULT_MIN_DEPOSIT = BigInt(200_0000_0000);
+/** Minimum deposit in shannons (1000 CKBytes = 1000 * 10^8 shannons). */
+export const DEFAULT_MIN_DEPOSIT = BigInt(1000_0000_0000);
 
 /** Per-update fee in shannons (~3 CKBytes). */
 export const DEFAULT_PER_UPDATE_FEE = BigInt(3_0000_0000);

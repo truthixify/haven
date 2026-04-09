@@ -189,17 +189,17 @@ export default function Dashboard() {
                   Initial Deposit
                 </span>
                 <p className="text-xs font-mono text-[#cbc3d7]/60 mt-2 uppercase">
-                  Minimum: 200 CKB / Recommended: 500 CKB
+                  Minimum: 1000 CKB / Recommended: 2000 CKB
                 </p>
               </div>
               <div className="mt-8 space-y-3">
-                {[200, 500, 1000].map((amt) => (
+                {[1000, 2000, 5000].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => !isDepositLoading && handleCreate(amt)}
                     disabled={isDepositLoading}
                     className={`w-full py-4 text-xs font-headline font-bold uppercase tracking-widest transition-all active:scale-95 ${
-                      amt === 500
+                      amt === 2000
                         ? 'bg-transparent border border-[#d0bcff] text-[#d0bcff]'
                         : 'border border-outline-variant hover:bg-[#343537] text-primary'
                     } ${isDepositLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -208,7 +208,7 @@ export default function Dashboard() {
                   </button>
                 ))}
                 <p className="text-[10px] font-mono text-[#cbc3d7]/40 mt-4">
-                  ~{Math.floor(500 / 3)} score updates included with 500 CKB deposit.
+                  ~{Math.floor(2000 / 3)} score updates included. Score updates every 24 hours.
                 </p>
               </div>
             </>
@@ -282,6 +282,10 @@ export default function Dashboard() {
               Sovereign Privacy Layer. Maintain hygiene to preserve {tierName}{' '}
               status.
             </p>
+            <div className="flex items-center gap-2 mt-4 text-[10px] font-mono text-[#cbc3d7]/50 uppercase tracking-widest">
+              <span className="material-symbols-outlined text-xs">schedule</span>
+              Next score update: daily at 00:00 UTC
+            </div>
           </div>
           {/* Decorative Element */}
           <div className="absolute -right-8 -bottom-8 w-64 h-40 border-2 border-[#d0bcff]/10 rounded-xl" />
