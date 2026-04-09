@@ -130,7 +130,7 @@ export default function ScoreHistory({
               }}
               labelStyle={{ color: '#cbc3d7' }}
               itemStyle={{ color: '#d0bcff' }}
-              formatter={(value: number) => [`${value}`, 'Score']}
+              formatter={(value) => [`${value}`, 'Score']}
               labelFormatter={(label) => `Epoch ${label}`}
             />
             <Area

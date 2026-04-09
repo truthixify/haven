@@ -366,9 +366,9 @@ function ConnectionCard({
             Stored exclusively in TEE sealed storage
           </p>
           {isConnected ? (
-            <button className="w-full bg-surface-container-highest text-primary font-bold py-3 text-sm border border-outline-variant/30 hover:border-primary transition-all">
-              Update Link
-            </button>
+            <div className="w-full bg-surface-container-highest text-secondary font-bold py-3 text-sm text-center border border-secondary/20">
+              Linked
+            </div>
           ) : isConfigured ? (
             <button
               onClick={handleConnect}
