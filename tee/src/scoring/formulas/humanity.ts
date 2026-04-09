@@ -1,4 +1,6 @@
 import {
+  DiscordActivity,
+  LinkedInActivity,
   TwitterActivity,
   GitHubActivity,
   OnChainActivity,
@@ -46,12 +48,15 @@ function sigmoid(value: number, halfSaturation: number): number {
 function scoreAccountAge(
   twitter: TwitterActivity | undefined,
   github: GitHubActivity | undefined,
+  discord: DiscordActivity | undefined,
+  _linkedin: LinkedInActivity | undefined,
   onchain: OnChainActivity,
 ): number {
   const ages: number[] = [];
 
   if (twitter) ages.push(twitter.accountAge);
   if (github) ages.push(github.accountAge);
+  if (discord) ages.push(discord.accountAge);
   if (onchain.accountAgeDays > 0) ages.push(onchain.accountAgeDays);
 
   if (ages.length === 0) return 0;
@@ -79,28 +84,37 @@ function scoreAccountAge(
 function scoreCrossPlatformConsistency(
   twitter: TwitterActivity | undefined,
   github: GitHubActivity | undefined,
+  discord: DiscordActivity | undefined,
+  linkedin: LinkedInActivity | undefined,
   onchain: OnChainActivity,
 ): number {
   let platformsConnected = 1; // Wallet is always connected
   let platformsActive = 0;
+  const totalPlatforms = 5; // wallet, twitter, github, discord, linkedin
 
-  // Check wallet activity — just having on-chain txs counts
   if (onchain.totalTransactions > 0) platformsActive++;
 
-  // Check Twitter activity
   if (twitter) {
     platformsConnected++;
     if (twitter.recentTweets > 0) platformsActive++;
   }
 
-  // Check GitHub activity
   if (github) {
     platformsConnected++;
     if (github.recentCommits > 0) platformsActive++;
   }
 
-  // Base score: having a wallet connected at all gives 0.33
-  const connectionScore = platformsConnected / 3;
+  if (discord) {
+    platformsConnected++;
+    if (discord.guildCount > 0) platformsActive++;
+  }
+
+  if (linkedin) {
+    platformsConnected++;
+    if (linkedin.hasProfile) platformsActive++;
+  }
+
+  const connectionScore = platformsConnected / totalPlatforms;
 
   // Activity score: being active on connected platforms
   const activityScore =
@@ -160,12 +174,16 @@ function scoreTransactionRegularity(onchain: OnChainActivity): number {
 export function computeHumanityScore(
   twitter: TwitterActivity | undefined,
   github: GitHubActivity | undefined,
+  discord: DiscordActivity | undefined,
+  linkedin: LinkedInActivity | undefined,
   onchain: OnChainActivity,
 ): number {
-  const age = scoreAccountAge(twitter, github, onchain);
+  const age = scoreAccountAge(twitter, github, discord, linkedin, onchain);
   const crossPlatform = scoreCrossPlatformConsistency(
     twitter,
     github,
+    discord,
+    linkedin,
     onchain,
   );
   const regularity = scoreTransactionRegularity(onchain);

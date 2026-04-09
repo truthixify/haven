@@ -5,6 +5,8 @@ import { ScoreController } from './score.controller';
 import { TwitterCollector } from './collectors/twitter.collector';
 import { GitHubCollector } from './collectors/github.collector';
 import { OnChainCollector } from './collectors/onchain.collector';
+import { DiscordCollector } from './collectors/discord.collector';
+import { LinkedInCollector } from './collectors/linkedin.collector';
 import { AttestationModule } from '../attestation/attestation.module';
 import { ChainModule } from '../chain/chain.module';
 import { NotificationModule } from '../notifications/notification.module';
@@ -18,6 +20,8 @@ import { NotificationModule } from '../notifications/notification.module';
     TwitterCollector,
     GitHubCollector,
     OnChainCollector,
+    DiscordCollector,
+    LinkedInCollector,
   ],
   exports: [ScoringService, ScoringScheduler],
 })

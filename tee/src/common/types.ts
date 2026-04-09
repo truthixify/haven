@@ -181,9 +181,25 @@ export interface OnChainActivity {
   accountAgeDays: number;
 }
 
+export interface DiscordActivity {
+  accountAge: number;
+  guildCount: number;
+  linkedAccountCount: number;
+  linkedAccountProviders: string[];
+  hasNitro: boolean;
+}
+
+export interface LinkedInActivity {
+  hasProfile: boolean;
+  name: string | null;
+  headline: string | null;
+}
+
 export interface CollectedActivity {
   twitter?: TwitterActivity;
   github?: GitHubActivity;
+  discord?: DiscordActivity;
+  linkedin?: LinkedInActivity;
   onchain: OnChainActivity;
 }
 

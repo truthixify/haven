@@ -1,4 +1,6 @@
 import {
+  DiscordActivity,
+  LinkedInActivity,
   TwitterActivity,
   GitHubActivity,
   OnChainActivity,
@@ -38,18 +40,15 @@ function sigmoid(value: number, halfSaturation: number): number {
 function scoreInteractionDiversity(
   twitter: TwitterActivity | undefined,
   github: GitHubActivity | undefined,
+  discord: DiscordActivity | undefined,
+  _linkedin: LinkedInActivity | undefined,
   onchain: OnChainActivity,
 ): number {
   let score = 0;
   let components = 0;
 
-  // On-chain diversity: always available
   components++;
-
-  // Unique address/tx diversity: half-saturation at 15
   const addressDiversity = sigmoid(onchain.uniqueAddressesUsed, 15);
-
-  // Activity type diversity: how many different on-chain activity types
   const activityTypes = [
     onchain.totalTransactions > 0,
     onchain.daoDeposits > 0,
@@ -58,28 +57,29 @@ function scoreInteractionDiversity(
     onchain.recentTransactions > 0,
   ];
   const typeDiversity = activityTypes.filter(Boolean).length / activityTypes.length;
-
   score += addressDiversity * 0.6 + typeDiversity * 0.4;
 
-  // Twitter participation (bonus if linked)
   if (twitter) {
     components++;
-
     const replyScore = sigmoid(twitter.recentReplies, 10);
     const likeScore = sigmoid(twitter.recentLikes, 20);
     const retweetScore = sigmoid(twitter.recentRetweets, 8);
-
     score += replyScore * 0.5 + likeScore * 0.25 + retweetScore * 0.25;
   }
 
-  // GitHub participation (bonus if linked)
   if (github) {
     components++;
-
     const issueScore = sigmoid(github.issueCount, 5);
     const prScore = sigmoid(github.pullRequestCount, 5);
-
     score += issueScore * 0.5 + prScore * 0.5;
+  }
+
+  // Discord: guild membership and linked accounts show community involvement
+  if (discord) {
+    components++;
+    const guildScore = sigmoid(discord.guildCount, 5);
+    const connectionsScore = sigmoid(discord.linkedAccountCount, 3);
+    score += guildScore * 0.6 + connectionsScore * 0.4;
   }
 
   const normalizedScore = components > 0 ? score / components : 0;
@@ -137,9 +137,11 @@ function scoreCellManagement(onchain: OnChainActivity): number {
 export function computeCommunityScore(
   twitter: TwitterActivity | undefined,
   github: GitHubActivity | undefined,
+  discord: DiscordActivity | undefined,
+  linkedin: LinkedInActivity | undefined,
   onchain: OnChainActivity,
 ): number {
-  const diversity = scoreInteractionDiversity(twitter, github, onchain);
+  const diversity = scoreInteractionDiversity(twitter, github, discord, linkedin, onchain);
   const recent = scoreRecentActivity(onchain);
   const cells = scoreCellManagement(onchain);
 

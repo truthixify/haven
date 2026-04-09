@@ -74,6 +74,6 @@ export default () => ({
   },
 
   scoring: {
-    cron: process.env.SCORING_CRON || '*/5 * * * *',
+    cron: process.env.SCORING_CRON || '0 0 * * *',
   },
 });

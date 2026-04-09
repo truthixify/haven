@@ -3,6 +3,8 @@ import { DatabaseService } from '../storage/database.service';
 import { TwitterCollector } from './collectors/twitter.collector';
 import { GitHubCollector } from './collectors/github.collector';
 import { OnChainCollector } from './collectors/onchain.collector';
+import { DiscordCollector } from './collectors/discord.collector';
+import { LinkedInCollector } from './collectors/linkedin.collector';
 import { computePrivacyHygieneScore } from './formulas/privacy-hygiene';
 import { computeContributionScore } from './formulas/contribution';
 import { computeHumanityScore } from './formulas/humanity';
@@ -37,6 +39,8 @@ export class ScoringService {
     private readonly twitterCollector: TwitterCollector,
     private readonly githubCollector: GitHubCollector,
     private readonly onchainCollector: OnChainCollector,
+    private readonly discordCollector: DiscordCollector,
+    private readonly linkedinCollector: LinkedInCollector,
   ) {}
 
   /**
@@ -104,10 +108,17 @@ export class ScoringService {
       record.identityCommitment,
       'github',
     );
+    const discordConnection = await this.databaseService.getConnection(
+      record.identityCommitment,
+      'discord',
+    );
+    const linkedinConnection = await this.databaseService.getConnection(
+      record.identityCommitment,
+      'linkedin',
+    );
 
     // Collect in parallel for efficiency
-    const [twitter, github, onchain] = await Promise.all([
-      // Twitter: only if connected with valid token
+    const [twitter, github, discord, linkedin, onchain] = await Promise.all([
       twitterConnection?.providerId && twitterConnection?.accessToken
         ? this.twitterCollector.collect(
             twitterConnection.accessToken,
@@ -115,13 +126,18 @@ export class ScoringService {
           )
         : Promise.resolve(undefined),
 
-      // GitHub: only if connected with valid token
       githubConnection?.accessToken
         ? this.githubCollector.collect(githubConnection.accessToken)
         : Promise.resolve(undefined),
 
-      // On-chain: always collected (wallet is always connected)
-      // Pass full lock script if available, otherwise fall back to pubkey
+      discordConnection?.accessToken
+        ? this.discordCollector.collect(discordConnection.accessToken)
+        : Promise.resolve(undefined),
+
+      linkedinConnection?.accessToken
+        ? this.linkedinCollector.collect(linkedinConnection.accessToken)
+        : Promise.resolve(undefined),
+
       this.onchainCollector.collect(record.ckbPubKey, {
         codeHash: record.lockCodeHash ?? undefined,
         hashType: record.lockHashType ?? undefined,
@@ -132,6 +148,8 @@ export class ScoringService {
     return {
       twitter: twitter ?? undefined,
       github: github ?? undefined,
+      discord: discord ?? undefined,
+      linkedin: linkedin ?? undefined,
       onchain,
     };
   }
@@ -148,11 +166,15 @@ export class ScoringService {
     const humanity = computeHumanityScore(
       activity.twitter,
       activity.github,
+      activity.discord,
+      activity.linkedin,
       activity.onchain,
     );
     const community = computeCommunityScore(
       activity.twitter,
       activity.github,
+      activity.discord,
+      activity.linkedin,
       activity.onchain,
     );
 

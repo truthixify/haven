@@ -58,9 +58,9 @@ export class ScoringScheduler {
 
   /**
    * Main scoring cycle cron job.
-   * Runs every 5 minutes by default (configurable via SCORING_CRON).
+   * Runs every 24 hours by default (configurable via SCORING_CRON).
    */
-  @Cron(process.env.SCORING_CRON || '*/5 * * * *', {
+  @Cron(process.env.SCORING_CRON || '0 0 * * *', {
     name: 'haven-scoring-cycle',
     timeZone: 'UTC',
   })
