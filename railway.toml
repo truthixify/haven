@@ -1,6 +1,7 @@
 [build]
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
+watchPatterns = ["proof-worker/**", "Dockerfile"]
 
 [deploy]
 healthcheckPath = "/health"
