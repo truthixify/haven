@@ -33,7 +33,7 @@ export default () => ({
     clientSecret: process.env.TWITTER_CLIENT_SECRET || '',
     callbackUrl:
       process.env.TWITTER_CALLBACK_URL ||
-      'http://localhost:3000/auth/twitter/callback',
+      'https://cd60c10b43ffe88796261dccc3305d975feb71ce-3000.dstack-pha-prod9.phala.network/api/auth/twitter/callback',
   },
 
   github: {
@@ -41,7 +41,7 @@ export default () => ({
     clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
     callbackUrl:
       process.env.GITHUB_CALLBACK_URL ||
-      'http://localhost:3000/auth/github/callback',
+      'https://cd60c10b43ffe88796261dccc3305d975feb71ce-3000.dstack-pha-prod9.phala.network/api/auth/github/callback',
   },
 
   proofWorker: {

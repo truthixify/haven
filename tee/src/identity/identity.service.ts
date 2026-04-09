@@ -175,7 +175,7 @@ export class IdentityService {
       lockCodeHash,
       lockHashType,
       lockArgs,
-    } as any);
+    });
     this.logger.log(
       `Lock script updated for ${identityCommitment.substring(0, 16)}...`,
     );

@@ -204,9 +204,8 @@ export default function Identity() {
             isConnected={connections.twitter}
             isWalletConnected={isWalletConnected}
             onConnect={() => {
-              if (!config.twitterClientId) return;
-              const callbackUrl = `${window.location.origin}/identity?auth=twitter`;
-              window.location.href = getTwitterAuthUrl(callbackUrl);
+              if (!config.twitterClientId || !identityCommitment) return;
+              window.location.href = `${config.teeEndpoint}/auth/twitter?identity=${encodeURIComponent(identityCommitment)}`;
             }}
             isConfigured={!!config.twitterClientId}
           />
@@ -219,9 +218,8 @@ export default function Identity() {
             isConnected={connections.github}
             isWalletConnected={isWalletConnected}
             onConnect={() => {
-              if (!config.githubClientId) return;
-              const callbackUrl = `${window.location.origin}/identity?auth=github`;
-              window.location.href = getGithubAuthUrl(callbackUrl);
+              if (!config.githubClientId || !identityCommitment) return;
+              window.location.href = `${config.teeEndpoint}/auth/github?identity=${encodeURIComponent(identityCommitment)}`;
             }}
             isConfigured={!!config.githubClientId}
           />

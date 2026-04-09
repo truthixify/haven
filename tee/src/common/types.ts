@@ -100,6 +100,12 @@ export interface SealedUserRecord {
   identityCommitment: string;
   /** CKB public key */
   ckbPubKey: string;
+  /** Lock script code hash (for on-chain activity lookup) */
+  lockCodeHash?: string | null;
+  /** Lock script hash type */
+  lockHashType?: string | null;
+  /** Lock script args */
+  lockArgs?: string | null;
   /** Last scoring epoch completed */
   lastScoredEpoch?: number;
   /** Last computed score (stored in DB, may differ from on-chain) */

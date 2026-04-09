@@ -123,9 +123,9 @@ export class ScoringService {
       // On-chain: always collected (wallet is always connected)
       // Pass full lock script if available, otherwise fall back to pubkey
       this.onchainCollector.collect(record.ckbPubKey, {
-        codeHash: (record as any).lockCodeHash,
-        hashType: (record as any).lockHashType,
-        args: (record as any).lockArgs,
+        codeHash: record.lockCodeHash ?? undefined,
+        hashType: record.lockHashType ?? undefined,
+        args: record.lockArgs ?? undefined,
       }),
     ]);
 

@@ -118,6 +118,15 @@ export class DatabaseService {
         updatePayload.scoreCellOutpoint =
           updates.scoreCellOutpoint ?? null;
       }
+      if ('lockCodeHash' in updates) {
+        updatePayload.lockCodeHash = updates.lockCodeHash ?? null;
+      }
+      if ('lockHashType' in updates) {
+        updatePayload.lockHashType = updates.lockHashType ?? null;
+      }
+      if ('lockArgs' in updates) {
+        updatePayload.lockArgs = updates.lockArgs ?? null;
+      }
 
       await this.userRepository.update(
         { identityCommitment },
@@ -381,6 +390,9 @@ export class DatabaseService {
     const record: SealedUserRecord = {
       identityCommitment: entity.identityCommitment,
       ckbPubKey: entity.ckbPubKey,
+      lockCodeHash: entity.lockCodeHash,
+      lockHashType: entity.lockHashType,
+      lockArgs: entity.lockArgs,
     };
 
     if (entity.lastScoredEpoch != null)
