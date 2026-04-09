@@ -156,10 +156,12 @@ export class AuthController {
     @Res() res: Response,
   ): Promise<void> {
     const identity = req.query['identity'] as string || '';
+    const redirect = req.query['redirect'] as string || 'https://haven-protocol.vercel.app';
     const clientId = this.config.get<string>('github.clientId', '');
     const callbackUrl = this.config.get<string>('github.callbackUrl', '');
     const scope = 'read:user repo';
-    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(identity)}`;
+    const state = Buffer.from(JSON.stringify({ identity, redirect })).toString('base64url');
+    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`;
     res.redirect(githubAuthUrl);
   }
 
@@ -170,13 +172,12 @@ export class AuthController {
     @Res() res: Response,
   ): Promise<void> {
     const code = req.query['code'] as string;
-    const identityCommitment = req.query['state'] as string;
+    const rawState = req.query['state'] as string || '';
+    const parsed = (() => { try { return JSON.parse(Buffer.from(rawState, 'base64url').toString()); } catch { return { identity: rawState, redirect: 'https://haven-protocol.vercel.app' }; } })(); const identityCommitment = parsed.identity; const dashboardUrl = parsed.redirect || 'https://haven-protocol.vercel.app';
 
     if (!identityCommitment) {
       this.logger.warn('GitHub callback missing identity commitment state');
-      res.status(HttpStatus.BAD_REQUEST).json({
-        error: 'Missing identity commitment in OAuth state',
-      });
+      res.redirect(`${dashboardUrl}/identity?error=missing_identity`);
       return;
     }
 
@@ -217,8 +218,6 @@ export class AuthController {
         accessToken,
       );
 
-      const dashboardUrl = req.query['redirect'] as string || req.headers.origin || 'https://haven-protocol.vercel.app';
-
       if (linked) {
         this.logger.log('GitHub account linked successfully');
         res.redirect(`${dashboardUrl}/identity?linked=github`);
@@ -244,6 +243,8 @@ export class AuthController {
   async getAccountStatus(@Req() req: Request): Promise<{
     twitter: boolean;
     github: boolean;
+    discord: boolean;
+    linkedin: boolean;
     wallet: boolean;
   }> {
     // Accept identity from header or query param
@@ -251,7 +252,7 @@ export class AuthController {
       (req.headers['x-haven-identity'] as string) ||
       (req.query['commitment'] as string);
     if (!identityCommitment) {
-      return { twitter: false, github: false, wallet: false };
+      return { twitter: false, github: false, discord: false, linkedin: false, wallet: false };
     }
     return this.authService.getLinkedAccounts(identityCommitment);
   }
@@ -276,5 +277,153 @@ export class AuthController {
     const identityCommitment = (req as any).identityCommitment as string;
     const success = await this.authService.unlinkGitHub(identityCommitment);
     return { success };
+  }
+
+  // -----------------------------------------------------------------------
+  // Discord OAuth Flow
+  // -----------------------------------------------------------------------
+
+  @Get('discord')
+  @ApiOperation({ summary: 'Start Discord OAuth', description: 'Redirects to Discord for authorization.' })
+  async discordAuth(
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const identity = req.query['identity'] as string || '';
+    const redirect = req.query['redirect'] as string || 'https://haven-protocol.vercel.app';
+    const clientId = this.config.get<string>('discord.clientId', '');
+    const callbackUrl = this.config.get<string>('discord.callbackUrl', '');
+    const scope = 'identify email guilds connections';
+    const state = Buffer.from(JSON.stringify({ identity, redirect })).toString('base64url');
+    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`;
+    res.redirect(discordAuthUrl);
+  }
+
+  @Get('discord/callback')
+  @ApiExcludeEndpoint()
+  async discordCallback(
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const code = req.query['code'] as string;
+    const rawState = req.query['state'] as string || '';
+    const parsed = (() => { try { return JSON.parse(Buffer.from(rawState, 'base64url').toString()); } catch { return { identity: rawState, redirect: 'https://haven-protocol.vercel.app' }; } })(); const identityCommitment = parsed.identity; const dashboardUrl = parsed.redirect || 'https://haven-protocol.vercel.app';
+
+    if (!code || !identityCommitment) {
+      res.redirect(`${dashboardUrl}/identity?error=missing_params`);
+      return;
+    }
+
+    try {
+      const { default: axios } = await import('axios');
+      const tokenResponse = await axios.post(
+        'https://discord.com/api/oauth2/token',
+        new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: this.config.get<string>('discord.callbackUrl', ''),
+          client_id: this.config.get<string>('discord.clientId', ''),
+          client_secret: this.config.get<string>('discord.clientSecret', ''),
+        }).toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      );
+
+      const accessToken = tokenResponse.data?.access_token;
+      if (!accessToken) {
+        res.redirect(`${dashboardUrl}/identity?error=no_token`);
+        return;
+      }
+
+      const profileResponse = await axios.get('https://discord.com/api/users/@me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const discordId = profileResponse.data?.id;
+      const username = profileResponse.data?.username;
+
+      await this.authService.linkConnection(
+        identityCommitment, 'discord', discordId, accessToken, null,
+        { username, avatar: profileResponse.data?.avatar },
+      );
+
+      this.logger.log('Discord account linked successfully');
+      res.redirect(`${dashboardUrl}/identity?linked=discord`);
+    } catch (error: any) {
+      this.logger.error(`Discord OAuth failed: ${error?.response?.status} ${JSON.stringify(error?.response?.data)}`);
+      res.redirect(`${dashboardUrl}/identity?error=oauth_failed`);
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // LinkedIn OAuth Flow
+  // -----------------------------------------------------------------------
+
+  @Get('linkedin')
+  @ApiOperation({ summary: 'Start LinkedIn OAuth', description: 'Redirects to LinkedIn for authorization via OpenID Connect.' })
+  async linkedinAuth(
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const identity = req.query['identity'] as string || '';
+    const redirect = req.query['redirect'] as string || 'https://haven-protocol.vercel.app';
+    const clientId = this.config.get<string>('linkedin.clientId', '');
+    const callbackUrl = this.config.get<string>('linkedin.callbackUrl', '');
+    const scope = 'openid profile email';
+    const state = Buffer.from(JSON.stringify({ identity, redirect })).toString('base64url');
+    const linkedinAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`;
+    res.redirect(linkedinAuthUrl);
+  }
+
+  @Get('linkedin/callback')
+  @ApiExcludeEndpoint()
+  async linkedinCallback(
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const code = req.query['code'] as string;
+    const rawState = req.query['state'] as string || '';
+    const parsed = (() => { try { return JSON.parse(Buffer.from(rawState, 'base64url').toString()); } catch { return { identity: rawState, redirect: 'https://haven-protocol.vercel.app' }; } })(); const identityCommitment = parsed.identity; const dashboardUrl = parsed.redirect || 'https://haven-protocol.vercel.app';
+
+    if (!code || !identityCommitment) {
+      res.redirect(`${dashboardUrl}/identity?error=missing_params`);
+      return;
+    }
+
+    try {
+      const { default: axios } = await import('axios');
+      const tokenResponse = await axios.post(
+        'https://www.linkedin.com/oauth/v2/accessToken',
+        new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: this.config.get<string>('linkedin.callbackUrl', ''),
+          client_id: this.config.get<string>('linkedin.clientId', ''),
+          client_secret: this.config.get<string>('linkedin.clientSecret', ''),
+        }).toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      );
+
+      const accessToken = tokenResponse.data?.access_token;
+      if (!accessToken) {
+        res.redirect(`${dashboardUrl}/identity?error=no_token`);
+        return;
+      }
+
+      const profileResponse = await axios.get('https://api.linkedin.com/v2/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const linkedinId = profileResponse.data?.sub;
+      const name = profileResponse.data?.name;
+
+      await this.authService.linkConnection(
+        identityCommitment, 'linkedin', linkedinId, accessToken, null,
+        { name, picture: profileResponse.data?.picture },
+      );
+
+      this.logger.log('LinkedIn account linked successfully');
+      res.redirect(`${dashboardUrl}/identity?linked=linkedin`);
+    } catch (error: any) {
+      this.logger.error(`LinkedIn OAuth failed: ${error?.response?.status} ${JSON.stringify(error?.response?.data)}`);
+      res.redirect(`${dashboardUrl}/identity?error=oauth_failed`);
+    }
   }
 }

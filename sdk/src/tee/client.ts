@@ -271,6 +271,8 @@ export class HavenTeeClient {
         wallet: boolean;
         twitter: boolean;
         github: boolean;
+        discord: boolean;
+        linkedin: boolean;
       }>(`/auth/status?commitment=${encodeURIComponent(identityCommitment)}`);
 
       return {
@@ -282,6 +284,8 @@ export class HavenTeeClient {
         wallet: false,
         twitter: false,
         github: false,
+        discord: false,
+        linkedin: false,
         identityCommitment: null,
       };
     }

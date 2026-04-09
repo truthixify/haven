@@ -99,12 +99,12 @@ export class AuthService {
    */
   async getLinkedAccounts(
     identityCommitment: string,
-  ): Promise<{ twitter: boolean; github: boolean; wallet: boolean }> {
+  ): Promise<{ twitter: boolean; github: boolean; discord: boolean; linkedin: boolean; wallet: boolean }> {
     const record =
       await this.databaseService.getUserRecord(identityCommitment);
 
     if (!record) {
-      return { twitter: false, github: false, wallet: false };
+      return { twitter: false, github: false, discord: false, linkedin: false, wallet: false };
     }
 
     const providers =
@@ -113,8 +113,35 @@ export class AuthService {
     return {
       twitter: providers.includes('twitter'),
       github: providers.includes('github'),
+      discord: providers.includes('discord'),
+      linkedin: providers.includes('linkedin'),
       wallet: !!record.ckbPubKey,
     };
+  }
+
+  /**
+   * Generic method to link any provider connection.
+   */
+  async linkConnection(
+    identityCommitment: string,
+    provider: string,
+    providerId: string,
+    accessToken: string | null,
+    refreshToken: string | null,
+    metadata?: Record<string, unknown> | null,
+  ): Promise<boolean> {
+    const record = await this.databaseService.getUserRecord(identityCommitment);
+    if (!record) return false;
+
+    await this.databaseService.addConnection(
+      identityCommitment,
+      provider,
+      providerId,
+      accessToken,
+      refreshToken,
+      metadata,
+    );
+    return true;
   }
 
   /**

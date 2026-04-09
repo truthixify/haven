@@ -44,6 +44,22 @@ export default () => ({
       'https://cd60c10b43ffe88796261dccc3305d975feb71ce-3000.dstack-pha-prod9.phala.network/api/auth/github/callback',
   },
 
+  discord: {
+    clientId: process.env.DISCORD_CLIENT_ID || '',
+    clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
+    callbackUrl:
+      process.env.DISCORD_CALLBACK_URL ||
+      'https://cd60c10b43ffe88796261dccc3305d975feb71ce-3000.dstack-pha-prod9.phala.network/api/auth/discord/callback',
+  },
+
+  linkedin: {
+    clientId: process.env.LINKEDIN_CLIENT_ID || '',
+    clientSecret: process.env.LINKEDIN_CLIENT_SECRET || '',
+    callbackUrl:
+      process.env.LINKEDIN_CALLBACK_URL ||
+      'https://cd60c10b43ffe88796261dccc3305d975feb71ce-3000.dstack-pha-prod9.phala.network/api/auth/linkedin/callback',
+  },
+
   proofWorker: {
     url: process.env.PROOF_WORKER_URL || 'http://localhost:3001',
   },

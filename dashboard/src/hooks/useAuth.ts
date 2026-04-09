@@ -35,7 +35,7 @@ export function useAuth() {
   const [state, setState] = useState<AuthState>({
     isWalletConnected: false,
     address: null,
-    connections: { twitter: false, github: false, wallet: false },
+    connections: { twitter: false, github: false, discord: false, linkedin: false, wallet: false },
     identityCommitment: null,
     isLoading: false,
     isChecking: !!signer,
@@ -53,7 +53,7 @@ export function useAuth() {
           setState({
             isWalletConnected: false,
             address: null,
-            connections: { twitter: false, github: false, wallet: false },
+            connections: { twitter: false, github: false, discord: false, linkedin: false, wallet: false },
             identityCommitment: null,
             isLoading: false,
             isChecking: false,
@@ -143,6 +143,8 @@ export function useAuth() {
             wallet: status.wallet ?? true,
             twitter: status.twitter ?? false,
             github: status.github ?? false,
+            discord: (status as any).discord ?? false,
+            linkedin: (status as any).linkedin ?? false,
           },
         }));
       }
@@ -174,6 +176,8 @@ export function useAuth() {
             wallet: status.wallet ?? true,
             twitter: status.twitter ?? false,
             github: status.github ?? false,
+            discord: (status as any).discord ?? false,
+            linkedin: (status as any).linkedin ?? false,
           },
         }));
       } catch (err) {

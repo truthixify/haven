@@ -44,4 +44,6 @@ export const config = {
 
   twitterClientId: import.meta.env.VITE_TWITTER_CLIENT_ID || '',
   githubClientId: import.meta.env.VITE_GITHUB_CLIENT_ID || '',
+  discordClientId: import.meta.env.VITE_DISCORD_CLIENT_ID || '',
+  linkedinClientId: import.meta.env.VITE_LINKEDIN_CLIENT_ID || '',
 };

@@ -23,6 +23,8 @@ export interface ScoreHistoryPoint {
 export interface ConnectionStatus {
   twitter: boolean;
   github: boolean;
+  discord: boolean;
+  linkedin: boolean;
   wallet: boolean;
 }
 

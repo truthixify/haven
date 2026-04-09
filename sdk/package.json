@@ -1,6 +1,6 @@
 {
   "name": "@haven-protocol-ckb/sdk",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Haven Protocol SDK for CKB — read and verify Haven Scores directly from the chain via CCC",
   "license": "MIT",
   "main": "dist/index.js",

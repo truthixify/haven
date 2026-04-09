@@ -18,7 +18,7 @@ services:
       start_period: 10s
 
   tee-app:
-    image: truthixify/haven-tee:latest@sha256:a13a9b0b53abf25f48742c60966b4d70ba48e32cfe7521e121f93a03da6e9daf
+    image: truthixify/haven-tee:latest@sha256:16672013399c8f21c6c3dddf38988feefd3672c9d384088377320ae10aa85584
     container_name: haven-tee
     environment:
       # Database (connects to the db service above)
@@ -53,6 +53,10 @@ services:
       TWITTER_CLIENT_SECRET: ${TWITTER_CLIENT_SECRET:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
 
       # Scoring
       SCORING_CRON: ${SCORING_CRON:-0 0 * * *}

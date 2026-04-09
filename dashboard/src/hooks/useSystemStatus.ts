@@ -49,6 +49,7 @@ export function useSystemStatus(): SystemStatus {
       setHealth(data);
       setIsOnline(true);
     } catch {
+      setHealth(null);
       setIsOnline(false);
     }
   }, []);

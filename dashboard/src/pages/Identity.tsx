@@ -219,7 +219,7 @@ export default function Identity() {
             isWalletConnected={isWalletConnected}
             onConnect={() => {
               if (!config.githubClientId || !identityCommitment) return;
-              window.location.href = `${config.teeEndpoint}/auth/github?identity=${encodeURIComponent(identityCommitment)}`;
+              window.location.href = `${config.teeEndpoint}/auth/github?identity=${encodeURIComponent(identityCommitment)}&redirect=${encodeURIComponent(window.location.origin)}`;
             }}
             isConfigured={!!config.githubClientId}
           />
@@ -233,6 +233,34 @@ export default function Identity() {
             isWalletConnected={isWalletConnected}
             onConnect={() => {}}
             isConfigured={true}
+          />
+
+          {/* Discord Card */}
+          <ConnectionCard
+            icon="headset_mic"
+            name="Discord"
+            weight="10.0%"
+            isConnected={connections.discord ?? false}
+            isWalletConnected={isWalletConnected}
+            onConnect={() => {
+              if (!identityCommitment) return;
+              window.location.href = `${config.teeEndpoint}/auth/discord?identity=${encodeURIComponent(identityCommitment)}&redirect=${encodeURIComponent(window.location.origin)}`;
+            }}
+            isConfigured={!!config.discordClientId}
+          />
+
+          {/* LinkedIn Card */}
+          <ConnectionCard
+            icon="badge"
+            name="LinkedIn"
+            weight="15.0%"
+            isConnected={connections.linkedin ?? false}
+            isWalletConnected={isWalletConnected}
+            onConnect={() => {
+              if (!identityCommitment) return;
+              window.location.href = `${config.teeEndpoint}/auth/linkedin?identity=${encodeURIComponent(identityCommitment)}&redirect=${encodeURIComponent(window.location.origin)}`;
+            }}
+            isConfigured={!!config.linkedinClientId}
           />
         </section>
 

@@ -13,6 +13,8 @@ export interface ConnectionStatus {
   wallet: boolean;
   twitter: boolean;
   github: boolean;
+  discord: boolean;
+  linkedin: boolean;
   identityCommitment: string | null;
 }
 
