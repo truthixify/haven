@@ -424,6 +424,42 @@ export class HavenTeeClient {
   }
 
   // -----------------------------------------------------------------------
+  // Top-up co-signing
+  // -----------------------------------------------------------------------
+
+  /**
+   * Request the TEE to co-sign a top-up transaction's Haven lock witness.
+   *
+   * The dashboard builds the full transaction but cannot sign the Haven lock
+   * (wallet extensions only sign their own secp256k1 inputs). The TEE
+   * validates that only deposit_balance increased, then signs witness[0]
+   * using the TEE path (0x00).
+   *
+   * @param params.scoreCellTxHash - Outpoint txHash of the existing score cell
+   * @param params.scoreCellIndex  - Outpoint index
+   * @param params.outputDataHex   - Hex of the new 127-byte score cell data
+   * @param params.txHash          - Raw transaction hash (from tx.hash())
+   * @param params.witnesses       - All witnesses as hex strings
+   * @param params.inputCount      - Total number of inputs
+   * @returns The signed witness[0] hex string.
+   * @throws If the TEE rejects the transaction (not a valid top-up).
+   */
+  async signTopUp(params: {
+    scoreCellTxHash: string;
+    scoreCellIndex: number;
+    outputDataHex: string;
+    txHash: string;
+    witnesses: string[];
+    inputCount: number;
+  }): Promise<string> {
+    const result = await this.request<{ witness: string }>('/chain/sign-topup', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+    return result.witness;
+  }
+
+  // -----------------------------------------------------------------------
   // Utilities
   // -----------------------------------------------------------------------
 

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { ccc } from '@ckb-ccc/connector-react';
 import { useHavenScore } from '../hooks/useHavenScore';
 import { useDeposit } from '../hooks/useDeposit';
+import type { TopUpStep } from '../hooks/useDeposit';
 import { useAuth } from '../hooks/useAuth';
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { formatRelativeTime } from '../utils/formatRelativeTime';
@@ -27,15 +28,16 @@ export default function Dashboard() {
     isLoading: isDepositLoading,
     error: depositError,
     lastTxHash,
+    topUpStep,
     createScoreCell,
     topUp,
   } = useDeposit();
 
-  // Score refresh handler (hooks must be before any early return)
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const handleRefresh = useCallback(async () => {
-    if (!identityCommitment || isRefreshing) return;
-    setIsRefreshing(true);
+  // Score refresh: calls TEE to re-score, then re-reads chain
+  const [isScoreRefreshing, setIsScoreRefreshing] = useState(false);
+  const handleScoreRefresh = useCallback(async () => {
+    if (!identityCommitment || isScoreRefreshing) return;
+    setIsScoreRefreshing(true);
     try {
       const tee = new HavenTeeClient(config.teeEndpoint);
       await tee.requestScoreRefresh(identityCommitment);
@@ -43,9 +45,23 @@ export default function Dashboard() {
     } catch {
       // silent — refresh is best-effort
     } finally {
-      setIsRefreshing(false);
+      setIsScoreRefreshing(false);
     }
-  }, [identityCommitment, isRefreshing, refresh]);
+  }, [identityCommitment, isScoreRefreshing, refresh]);
+
+  // Balance refresh: just re-reads chain data (no TEE call)
+  const [isBalanceRefreshing, setIsBalanceRefreshing] = useState(false);
+  const handleBalanceRefresh = useCallback(async () => {
+    if (isBalanceRefreshing) return;
+    setIsBalanceRefreshing(true);
+    try {
+      refresh();
+      // Small delay so the spin animation is visible
+      await new Promise(r => setTimeout(r, 1000));
+    } finally {
+      setIsBalanceRefreshing(false);
+    }
+  }, [isBalanceRefreshing, refresh]);
 
   // Not connected state
   if (!wallet) {
@@ -254,12 +270,12 @@ export default function Dashboard() {
                 CRITICAL REPUTATION INDEX
               </span>
               <button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
+                onClick={handleScoreRefresh}
+                disabled={isScoreRefreshing}
                 title="Refresh score"
                 className="p-1 rounded-md text-[#cbc3d7]/60 hover:text-primary hover:bg-[#343537] transition-all disabled:opacity-40"
               >
-                <span className={`material-symbols-outlined text-base ${isRefreshing ? 'animate-spin' : ''}`}>
+                <span className={`material-symbols-outlined text-base ${isScoreRefreshing ? 'animate-spin' : ''}`}>
                   refresh
                 </span>
               </button>
@@ -294,9 +310,21 @@ export default function Dashboard() {
         {/* Wallet Card */}
         <div className="lg:col-span-5 bg-surface-container-high p-6 md:p-8 rounded-xl flex flex-col justify-between h-full border-l-2 border-secondary">
           <div>
-            <span className="text-xs font-headline uppercase tracking-widest text-[#cbc3d7] mb-6 block">
-              Sovereign Liquidity
-            </span>
+            <div className="flex items-center justify-between mb-6">
+              <span className="text-xs font-headline uppercase tracking-widest text-[#cbc3d7]">
+                Sovereign Liquidity
+              </span>
+              <button
+                onClick={handleBalanceRefresh}
+                disabled={isBalanceRefreshing}
+                title="Refresh balance"
+                className="p-1 rounded-md text-[#cbc3d7]/60 hover:text-primary hover:bg-[#343537] transition-all disabled:opacity-40"
+              >
+                <span className={`material-symbols-outlined text-base ${isBalanceRefreshing ? 'animate-spin' : ''}`}>
+                  refresh
+                </span>
+              </button>
+            </div>
             <div className="flex items-baseline gap-2">
               <h3 className="text-3xl md:text-4xl font-headline font-bold text-[#e3e2e5]">
                 {formatCkbAmount(depositBalance)}
@@ -309,14 +337,25 @@ export default function Dashboard() {
               Status: Isolated / Private
             </p>
           </div>
-          <div className="mt-8">
-            <button
-              onClick={() => topUp(100)}
-              disabled={isDepositLoading}
-              className="w-full py-4 border border-outline-variant hover:bg-[#343537] transition-all duration-200 text-primary font-headline uppercase tracking-widest text-xs font-bold active:scale-95"
-            >
-              {isDepositLoading ? 'Processing...' : 'Top Up Balance'}
-            </button>
+          <div className="mt-8 space-y-3">
+            <span className="text-[10px] font-mono text-[#cbc3d7]/60 uppercase tracking-widest">
+              Top Up Deposit
+            </span>
+            <div className="grid grid-cols-3 gap-2">
+              {[100, 500, 1000].map((amt) => (
+                <button
+                  key={amt}
+                  onClick={() => topUp(amt)}
+                  disabled={isDepositLoading}
+                  className="py-3 border border-outline-variant hover:bg-[#343537] hover:border-[#d0bcff]/30 transition-all duration-200 text-primary font-mono text-xs font-bold active:scale-95 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {amt} CKB
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] font-mono text-[#cbc3d7]/40 text-center">
+              ~3 CKB per update / scores update daily
+            </p>
           </div>
           {depositError && (
             <p className="text-xs text-error mt-2">{depositError}</p>
@@ -345,29 +384,51 @@ export default function Dashboard() {
         currentEpoch={score!.epoch}
       />
 
-      {/* Loading overlay for deposit/top-up transactions */}
+      {/* Loading overlay for top-up transactions */}
       <ActionLoadingOverlay
         isOpen={isDepositLoading}
-        title={lastTxHash ? 'Confirming Transaction' : 'Securing Protocol Action'}
+        title={
+          topUpStep === 'confirming'
+            ? 'Confirming Transaction'
+            : topUpStep === 'signing-wallet'
+              ? 'Wallet Approval'
+              : topUpStep === 'signing-tee'
+                ? 'TEE Co-Signing'
+                : 'Topping Up Deposit'
+        }
         description={
-          lastTxHash
-            ? 'Waiting for on-chain confirmation of your transaction.'
-            : 'Verifying computation through the Phala TEE and submitting to CKB.'
+          topUpStep === 'confirming'
+            ? 'Waiting for on-chain confirmation.'
+            : topUpStep === 'signing-wallet'
+              ? 'Approve the transaction in your wallet.'
+              : topUpStep === 'signing-tee'
+                ? 'The Phala TEE is co-signing the Haven lock witness.'
+                : 'Building and signing your top-up transaction.'
         }
-        steps={
-          lastTxHash
-            ? [
-                { label: 'Transaction Submitted', status: 'verified' },
-                { label: 'Awaiting CKB Confirmation', status: 'processing' },
-              ]
-            : [
-                { label: 'Phala TEE Attesting', status: 'verified' },
-                { label: 'Building CKB Transaction', status: 'processing' },
-              ]
-        }
+        steps={topUpSteps(topUpStep)}
       />
     </>
   );
+}
+
+/** Build step list for the top-up loading overlay. */
+const TOPUP_STEP_ORDER: TopUpStep[] = [
+  'finding-cell', 'building-tx', 'signing-wallet', 'signing-tee', 'submitting', 'confirming',
+];
+const TOPUP_STEP_LABELS: Record<string, string> = {
+  'finding-cell': 'Locating Score Cell',
+  'building-tx': 'Building Transaction',
+  'signing-wallet': 'Wallet Signing Fee Cells',
+  'signing-tee': 'TEE Co-Signing Haven Lock',
+  'submitting': 'Submitting to CKB',
+  'confirming': 'Awaiting Confirmation',
+};
+function topUpSteps(current: TopUpStep) {
+  const idx = current ? TOPUP_STEP_ORDER.indexOf(current) : -1;
+  return TOPUP_STEP_ORDER.map((step, i) => ({
+    label: TOPUP_STEP_LABELS[step],
+    status: (i < idx ? 'verified' : i === idx ? 'processing' : 'pending') as 'verified' | 'processing' | 'pending',
+  }));
 }
 
 /** Integrity Breakdown — direct from stitch HTML, no dynamic class construction */

@@ -45,10 +45,10 @@ function readU16LE(data: Uint8Array, offset: number): number {
 /** Read an unsigned 32-bit little-endian integer from a buffer at the given offset. */
 function readU32LE(data: Uint8Array, offset: number): number {
   return (
-    data[offset]! |
+    (data[offset]! |
     (data[offset + 1]! << 8) |
     (data[offset + 2]! << 16) |
-    ((data[offset + 3]! << 24) >>> 0)  // >>> 0 to keep unsigned
+    (data[offset + 3]! << 24)) >>> 0  // >>> 0 on the full expression to keep unsigned
   );
 }
 

@@ -87,11 +87,21 @@ function getTypeScriptInfo(): {
   };
 }
 
+export type TopUpStep =
+  | 'finding-cell'
+  | 'building-tx'
+  | 'signing-wallet'
+  | 'signing-tee'
+  | 'submitting'
+  | 'confirming'
+  | null;
+
 interface UseDepositReturn {
   isLoading: boolean;
   error: string | null;
   lastTxHash: string | null;
   depositHistory: DepositHistoryEntry[];
+  topUpStep: TopUpStep;
   createScoreCell: (depositAmountCKB: number) => Promise<string | null>;
   topUp: (amountCKB: number) => Promise<string | null>;
   clearError: () => void;
@@ -111,6 +121,7 @@ export function useDeposit(): UseDepositReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+  const [topUpStep, setTopUpStep] = useState<TopUpStep>(null);
   const [depositHistory] = useState<DepositHistoryEntry[]>([]);
 
   const minDepositCKB = Number(DEFAULT_MIN_DEPOSIT) / Number(SHANNON_PER_CKB);
@@ -299,6 +310,7 @@ export function useDeposit(): UseDepositReturn {
       setIsLoading(true);
       setError(null);
       setLastTxHash(null);
+      setTopUpStep('finding-cell');
 
       try {
         const addressObj = await signer.getRecommendedAddressObj();
@@ -315,37 +327,28 @@ export function useDeposit(): UseDepositReturn {
           outputData: string;
         } | null = null;
 
-        if (typeInfo) {
-          // Search by type script when deployed
-          const typeScript = ccc.Script.from({
-            codeHash: typeInfo.codeHash,
-            hashType: typeInfo.hashType,
-            args: lockHash,
-          });
-          const collector = signerClient.findCellsByType(typeScript, true);
-          for await (const cell of collector) {
-            if (!cell.outPoint) continue;
-            const dataHex = String(cell.outputData);
-            const clean = dataHex.startsWith('0x') ? dataHex.slice(2) : dataHex;
-            if (clean.length / 2 === SCORE_CELL_SIZE) {
-              scoreCell = { outPoint: cell.outPoint, cellOutput: cell.cellOutput, outputData: dataHex };
-              break;
-            }
-          }
-        } else {
-          // Type script not deployed — search by lock script for cells with 127-byte data
-          const collector = signer.findCells(
-            { script: lockScript, scriptType: 'lock', withData: true },
-            true,
-          );
-          for await (const cell of collector) {
-            if (!cell.outPoint) continue;
-            const dataHex = String(cell.outputData);
-            const clean = dataHex.startsWith('0x') ? dataHex.slice(2) : dataHex;
-            if (clean.length / 2 === SCORE_CELL_SIZE) {
-              scoreCell = { outPoint: cell.outPoint, cellOutput: cell.cellOutput, outputData: dataHex };
-              break;
-            }
+        // Search by Haven lock script (same approach as useHavenScore)
+        const argsClean = lockScript.args.replace(/^0x/, '');
+        let userBlake160Top = lockScript.args;
+        if (argsClean.length > 40) {
+          userBlake160Top = '0x' + argsClean.substring(2, 42);
+        }
+        const teePubkeyHash = config.teePubkeyHash.replace(/^0x/, '');
+        const havenLockArgsTop = '0x' + userBlake160Top.replace(/^0x/, '') + teePubkeyHash;
+
+        const havenLock = ccc.Script.from({
+          codeHash: config.havenLockScriptCodeHash,
+          hashType: config.havenLockScriptHashType,
+          args: havenLockArgsTop,
+        });
+        const collector = signerClient.findCellsByLock(havenLock, null, true);
+        for await (const cell of collector) {
+          if (!cell.outPoint) continue;
+          const dataHex = String(cell.outputData);
+          const clean = dataHex.startsWith('0x') ? dataHex.slice(2) : dataHex;
+          if (clean.length / 2 === SCORE_CELL_SIZE) {
+            scoreCell = { outPoint: cell.outPoint, cellOutput: cell.cellOutput, outputData: dataHex };
+            break;
           }
         }
 
@@ -385,6 +388,14 @@ export function useDeposit(): UseDepositReturn {
         const newCapacity = scoreCell.cellOutput.capacity + topUpShannons;
 
         const topUpCellDeps: Array<Record<string, unknown>> = [];
+        // Haven lock script cell dep (required to verify the score cell's lock)
+        topUpCellDeps.push({
+          outPoint: {
+            txHash: config.havenLockScriptCellDepTxHash,
+            index: config.havenLockScriptCellDepIndex,
+          },
+          depType: 'code',
+        });
         if (typeInfo) {
           topUpCellDeps.push({
             outPoint: {
@@ -402,6 +413,14 @@ export function useDeposit(): UseDepositReturn {
           });
         }
 
+        setTopUpStep('building-tx');
+
+        // Build Haven lock witness placeholder: [0x00 (TEE path) | zeros(65)]
+        // TEE co-signs the Haven lock because wallet extensions can't sign custom locks
+        const lockPlaceholder = '0x' + '00'.repeat(66);
+        const witness0 = ccc.WitnessArgs.from({ lock: lockPlaceholder });
+        const witness0Hex = ccc.hexFrom(witness0.toBytes());
+
         const tx = ccc.Transaction.from({
           cellDeps: topUpCellDeps,
           inputs: [{ previousOutput: scoreCell.outPoint }],
@@ -413,23 +432,59 @@ export function useDeposit(): UseDepositReturn {
             },
           ],
           outputsData: [updatedDataHex],
+          witnesses: [witness0Hex],
         });
 
+        // Add fee-paying inputs from user's wallet
         await tx.completeInputsByCapacity(signer);
         await tx.completeFeeBy(signer, 1000);
-        const txHash = await signer.sendTransaction(tx);
+
+        // Let CCC add secp256k1 cell deps and prepare fee cell witnesses
+        const preparedTx = await signer.prepareTransaction(tx);
+        preparedTx.witnesses[0] = witness0Hex;
+
+        setTopUpStep('signing-wallet');
+
+        // Sign fee cell inputs (CCC skips Haven lock — different script group)
+        const signedTx = await signer.signOnlyTransaction(preparedTx);
+        signedTx.witnesses[0] = witness0Hex;
+
+        setTopUpStep('signing-tee');
+
+        // Send tx data to TEE for Haven lock co-signing
+        const scoreCellOutpoint = scoreCell.outPoint;
+        const signedWitness = await teeClient.signTopUp({
+          scoreCellTxHash: String(scoreCellOutpoint.txHash),
+          scoreCellIndex: Number(scoreCellOutpoint.index),
+          outputDataHex: updatedDataHex,
+          txHash: signedTx.hash(),
+          witnesses: signedTx.witnesses.map(w => String(w)),
+          inputCount: signedTx.inputs.length,
+        });
+
+        // Set the TEE-signed Haven lock witness
+        signedTx.witnesses[0] = signedWitness as `0x${string}`;
+
+        setTopUpStep('submitting');
+
+        // Submit the fully-signed transaction
+        const txHash = await signer.client.sendTransaction(signedTx);
 
         setLastTxHash(txHash);
+
+        setTopUpStep('confirming');
 
         // Wait for tx confirmation on-chain
         await waitForConfirmation(signer.client, txHash);
 
+        setTopUpStep(null);
         setIsLoading(false);
         return txHash;
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Top-up failed';
         setError(message);
+        setTopUpStep(null);
         setIsLoading(false);
         return null;
       }
@@ -442,6 +497,7 @@ export function useDeposit(): UseDepositReturn {
     error,
     lastTxHash,
     depositHistory,
+    topUpStep,
     createScoreCell,
     topUp,
     clearError,

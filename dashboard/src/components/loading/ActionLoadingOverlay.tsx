@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 
 interface ProcessingStep {
@@ -17,12 +18,34 @@ const defaultSteps: ProcessingStep[] = [
   { label: 'Submitting to CKB', status: 'processing' },
 ];
 
+function useElapsedTime(isOpen: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!isOpen) {
+      setElapsed(0);
+      return;
+    }
+    startRef.current = Date.now();
+    const id = setInterval(() => setElapsed(Date.now() - startRef.current), 100);
+    return () => clearInterval(id);
+  }, [isOpen]);
+
+  const secs = Math.floor(elapsed / 1000);
+  const ms = Math.floor((elapsed % 1000) / 100);
+  return `${secs}.${ms}s`;
+}
+
 export default function ActionLoadingOverlay({
   isOpen,
   title = 'Securing Protocol Action',
   description = 'Processing your request through the Phala TEE.',
   steps = defaultSteps,
 }: ActionLoadingOverlayProps) {
+  const elapsed = useElapsedTime(isOpen);
+  const completedCount = steps.filter(s => s.status === 'verified').length;
+
   if (!isOpen) return null;
 
   const overlay = (
@@ -102,10 +125,10 @@ export default function ActionLoadingOverlay({
           <div className="flex items-center gap-4 w-full pt-6 border-t border-[#494454]/10">
             <div className="flex items-center gap-1.5 px-2 py-1 bg-[#343537] rounded text-[10px] font-['JetBrains_Mono'] text-[#44e2cd] tracking-tighter">
               <span className="w-1 h-1 rounded-full bg-[#44e2cd]" />
-              TEE_SESSION: ACTIVE
+              ELAPSED: {elapsed}
             </div>
             <div className="flex items-center gap-1.5 px-2 py-1 bg-[#343537] rounded text-[10px] font-['JetBrains_Mono'] text-[#cbc3d7] tracking-tighter">
-              NODE_LATENCY: 12MS
+              STEPS: {completedCount}/{steps.length}
             </div>
           </div>
         </div>

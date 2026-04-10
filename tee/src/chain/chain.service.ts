@@ -227,6 +227,133 @@ export class ChainService implements OnModuleInit {
   }
 
   // -----------------------------------------------------------------------
+  // Top-up witness signing (TEE co-signs for user-initiated top-ups)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Sign the Haven lock witness for a user-initiated top-up transaction.
+   *
+   * The dashboard builds the full transaction (score cell input + user fee
+   * cells) but cannot sign the Haven lock because wallet extensions only
+   * sign their own secp256k1_blake160 inputs. The TEE co-signs witness[0]
+   * using the TEE path (0x00).
+   *
+   * Safety: verifies that only deposit_balance increased — all other fields
+   * must be identical between input and output score cell data. On-chain the
+   * type script enforces this too via is_topup_only.
+   *
+   * @param params.scoreCellTxHash - Outpoint txHash of the existing score cell
+   * @param params.scoreCellIndex  - Outpoint index
+   * @param params.outputDataHex   - Hex of the new 127-byte score cell data
+   * @param params.txHash          - Raw transaction hash (from tx.hash())
+   * @param params.witnesses       - All witnesses as hex strings
+   * @param params.inputCount      - Total number of inputs
+   * @returns Signed witness[0] hex string, or null on failure.
+   */
+  async signTopUpWitness(params: {
+    scoreCellTxHash: string;
+    scoreCellIndex: number;
+    outputDataHex: string;
+    txHash: string;
+    witnesses: string[];
+    inputCount: number;
+  }): Promise<string | null> {
+    try {
+      // === 1. Read input cell data from chain and verify TEE key ===
+      const inputTxResult = await this.cccClient.getTransaction(params.scoreCellTxHash);
+      if (!inputTxResult) throw new Error('Could not fetch score cell transaction');
+
+      const inputCellOutput = inputTxResult.transaction.outputs[params.scoreCellIndex];
+      if (!inputCellOutput) throw new Error('Score cell not found at index');
+
+      const lockArgs = inputCellOutput.lock.args.replace(/^0x/, '');
+      const teePubkeyHashInLock = lockArgs.substring(40, 80);
+      const signerAddr = await this.cccSigner.getRecommendedAddressObj();
+      const signerBlake160 = signerAddr.script.args.replace(/^0x/, '');
+      if (teePubkeyHashInLock !== signerBlake160) {
+        throw new Error('TEE key does not match score cell lock args');
+      }
+
+      // === 2. Validate: this is a top-up (only deposit_balance changed) ===
+      const inputDataHex = inputTxResult.transaction.outputsData[params.scoreCellIndex] as string;
+      const inputData = Buffer.from(inputDataHex.replace(/^0x/, ''), 'hex');
+      const inputCell = deserializeScoreCellData(inputData);
+
+      const outputData = Buffer.from(params.outputDataHex.replace(/^0x/, ''), 'hex');
+      const outputCell = deserializeScoreCellData(outputData);
+
+      if (outputCell.depositBalance <= inputCell.depositBalance) {
+        throw new Error('Deposit balance must increase for a top-up');
+      }
+      if (
+        inputCell.version !== outputCell.version ||
+        inputCell.score !== outputCell.score ||
+        inputCell.epoch !== outputCell.epoch ||
+        !inputCell.userIdentity.equals(outputCell.userIdentity) ||
+        !inputCell.programHash.equals(outputCell.programHash) ||
+        !inputCell.proofHash.equals(outputCell.proofHash) ||
+        inputCell.scoreBreakdown.privacy !== outputCell.scoreBreakdown.privacy ||
+        inputCell.scoreBreakdown.contribution !== outputCell.scoreBreakdown.contribution ||
+        inputCell.scoreBreakdown.humanity !== outputCell.scoreBreakdown.humanity ||
+        inputCell.scoreBreakdown.community !== outputCell.scoreBreakdown.community ||
+        inputCell.issuedAt !== outputCell.issuedAt ||
+        inputCell.expiresAt !== outputCell.expiresAt
+      ) {
+        throw new Error('Top-up must only change deposit_balance');
+      }
+
+      // === 3. Compute sighash ===
+      const txHashBytes = Buffer.from(params.txHash.replace(/^0x/, ''), 'hex');
+
+      // Zeroed WitnessArgs: lock = 66 zero bytes (TEE path placeholder size)
+      const zeroedWa = ccc.WitnessArgs.from({
+        lock: ('0x' + Buffer.alloc(66).toString('hex')) as `0x${string}`,
+      });
+      const zeroedWaBytes = Buffer.from(zeroedWa.toBytes());
+
+      const hasher = blake2b(32, null, null, Buffer.from('ckb-default-hash'));
+      hasher.update(txHashBytes);
+      const lenBuf = Buffer.alloc(8);
+      lenBuf.writeBigUInt64LE(BigInt(zeroedWaBytes.length));
+      hasher.update(lenBuf);
+      hasher.update(zeroedWaBytes);
+
+      // Extra witnesses beyond input count
+      for (let i = params.inputCount; i < params.witnesses.length; i++) {
+        const wb = Buffer.from(params.witnesses[i].replace(/^0x/, ''), 'hex');
+        const wl = Buffer.alloc(8);
+        wl.writeBigUInt64LE(BigInt(wb.length));
+        hasher.update(wl);
+        hasher.update(wb);
+      }
+
+      const sighash = Buffer.from(hasher.digest() as Uint8Array);
+
+      // === 4. Sign with TEE key ===
+      const teeSigHex: string = await (this.cccSigner as any)._signMessage(
+        '0x' + sighash.toString('hex'),
+      );
+      const teeSigBytes = Buffer.from(teeSigHex.replace(/^0x/, ''), 'hex');
+
+      // === 5. Build final signed witness ===
+      const finalLock = Buffer.alloc(66);
+      finalLock[0] = 0x00;
+      teeSigBytes.copy(finalLock, 1);
+
+      const finalWitness = ccc.WitnessArgs.from({
+        lock: ('0x' + finalLock.toString('hex')) as `0x${string}`,
+      });
+      const finalHex = '0x' + Buffer.from(finalWitness.toBytes()).toString('hex');
+
+      this.logger.log('Signed top-up witness successfully');
+      return finalHex;
+    } catch (error) {
+      this.logger.error('Failed to sign top-up witness:', error);
+      return null;
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Private transaction building
   // -----------------------------------------------------------------------
 
