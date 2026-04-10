@@ -6,6 +6,7 @@ on:
       - 'sdk/**'
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   publish:
