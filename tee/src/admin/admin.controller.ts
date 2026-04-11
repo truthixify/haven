@@ -1,6 +1,7 @@
 import {
   Controller,
   Delete,
+  Post,
   Logger,
   HttpCode,
   HttpStatus,
@@ -81,5 +82,36 @@ export class AdminController {
     );
 
     return { success: true, deleted };
+  }
+
+  @Post('dedup-connections')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Remove duplicate provider connections',
+    description:
+      'Keeps the oldest connection per (provider, providerId) and deletes duplicates. ' +
+      'Run once to allow the UQ_provider_providerId constraint to be created. Remove after.',
+  })
+  async dedupConnections(): Promise<{ success: boolean; removed: number }> {
+    this.logger.warn('Deduplicating connections by (provider, providerId)');
+
+    const result = await this.connectionRepo.query(`
+      DELETE FROM connections
+      WHERE id NOT IN (
+        SELECT (
+          SELECT id FROM connections c2
+          WHERE c2.provider = c1.provider AND c2."providerId" = c1."providerId"
+          ORDER BY c2."connectedAt" ASC
+          LIMIT 1
+        )
+        FROM (
+          SELECT DISTINCT provider, "providerId" FROM connections
+        ) c1
+      )
+    `);
+
+    const removed = result?.[1] ?? 0;
+    this.logger.warn(`Removed ${removed} duplicate connections`);
+    return { success: true, removed };
   }
 }

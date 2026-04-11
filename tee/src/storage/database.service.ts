@@ -235,6 +235,17 @@ export class DatabaseService {
       const weight =
         reputationWeight ?? DEFAULT_REPUTATION_WEIGHTS[provider] ?? 0;
 
+      // Check if this social account is already connected to a different identity
+      const existingByProvider = await this.connectionRepository.findOneBy({
+        provider,
+        providerId,
+      });
+      if (existingByProvider && existingByProvider.identityCommitment !== identityCommitment) {
+        throw new Error(
+          `This ${provider} account is already connected to another wallet`,
+        );
+      }
+
       // Upsert: find existing or create new connection
       let entity = await this.connectionRepository.findOneBy({
         identityCommitment,

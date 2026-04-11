@@ -136,7 +136,7 @@ export class AuthController {
         this.logger.log('Twitter account linked successfully');
         res.redirect(`${dashboardUrl}/identity?linked=twitter`);
       } else {
-        res.redirect(`${dashboardUrl}/identity?error=identity_not_found`);
+        res.redirect(`${dashboardUrl}/identity?error=account_already_linked&provider=twitter`);
       }
     } catch (error: any) {
       const responseData = error?.response?.data;
@@ -222,11 +222,10 @@ export class AuthController {
         this.logger.log('GitHub account linked successfully');
         res.redirect(`${dashboardUrl}/identity?linked=github`);
       } else {
-        res.redirect(`${dashboardUrl}/identity?error=identity_not_found`);
+        res.redirect(`${dashboardUrl}/identity?error=account_already_linked&provider=github`);
       }
     } catch (error) {
       this.logger.error('GitHub OAuth exchange failed', error);
-      const dashboardUrl = req.headers.origin || 'https://haven-protocol.vercel.app';
       res.redirect(`${dashboardUrl}/identity?error=oauth_failed`);
     }
   }
@@ -340,10 +339,15 @@ export class AuthController {
       const discordId = profileResponse.data?.id;
       const username = profileResponse.data?.username;
 
-      await this.authService.linkConnection(
+      const linked = await this.authService.linkConnection(
         identityCommitment, 'discord', discordId, accessToken, null,
         { username, avatar: profileResponse.data?.avatar },
       );
+
+      if (!linked) {
+        res.redirect(`${dashboardUrl}/identity?error=account_already_linked&provider=discord`);
+        return;
+      }
 
       this.logger.log('Discord account linked successfully');
       res.redirect(`${dashboardUrl}/identity?linked=discord`);
@@ -414,10 +418,15 @@ export class AuthController {
       const linkedinId = profileResponse.data?.sub;
       const name = profileResponse.data?.name;
 
-      await this.authService.linkConnection(
+      const linked = await this.authService.linkConnection(
         identityCommitment, 'linkedin', linkedinId, accessToken, null,
         { name, picture: profileResponse.data?.picture },
       );
+
+      if (!linked) {
+        res.redirect(`${dashboardUrl}/identity?error=account_already_linked&provider=linkedin`);
+        return;
+      }
 
       this.logger.log('LinkedIn account linked successfully');
       res.redirect(`${dashboardUrl}/identity?linked=linkedin`);

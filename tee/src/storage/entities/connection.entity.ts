@@ -10,6 +10,7 @@ import {
 
 @Entity('connections')
 @Unique('UQ_identity_provider', ['identityCommitment', 'provider'])
+@Unique('UQ_provider_providerId', ['provider', 'providerId'])
 export class ConnectionEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

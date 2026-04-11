@@ -133,15 +133,23 @@ export class AuthService {
     const record = await this.databaseService.getUserRecord(identityCommitment);
     if (!record) return false;
 
-    await this.databaseService.addConnection(
-      identityCommitment,
-      provider,
-      providerId,
-      accessToken,
-      refreshToken,
-      metadata,
-    );
-    return true;
+    try {
+      await this.databaseService.addConnection(
+        identityCommitment,
+        provider,
+        providerId,
+        accessToken,
+        refreshToken,
+        metadata,
+      );
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Failed to link ${provider} for ${identityCommitment.substring(0, 16)}...`,
+        error,
+      );
+      return false;
+    }
   }
 
   /**

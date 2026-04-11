@@ -1,5 +1,5 @@
 import { ccc } from '@ckb-ccc/connector-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { formatRelativeTime } from '../utils/formatRelativeTime';
@@ -17,6 +17,26 @@ export default function Identity() {
     registrationError,
     registerWalletIdentity,
   } = useAuth();
+
+  // Read OAuth error/success from URL query params (set by TEE redirect)
+  const [oauthMessage, setOauthMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('error');
+    const provider = params.get('provider');
+    const linked = params.get('linked');
+    if (error === 'account_already_linked' && provider) {
+      setOauthMessage({ type: 'error', text: `This ${provider} account is already connected to another wallet.` });
+    } else if (error === 'oauth_failed') {
+      setOauthMessage({ type: 'error', text: 'OAuth connection failed. Please try again.' });
+    } else if (linked) {
+      setOauthMessage({ type: 'success', text: `${linked.charAt(0).toUpperCase() + linked.slice(1)} connected successfully.` });
+    }
+    // Clean URL params
+    if (error || linked) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   // Not connected
   if (!wallet) {
@@ -192,6 +212,28 @@ export default function Identity() {
             </div>
           </div>
         </section>
+
+        {/* OAuth message banner */}
+        {oauthMessage && (
+          <div className={`p-4 rounded-lg border ${
+            oauthMessage.type === 'error'
+              ? 'bg-error-container/20 border-error/20 text-error'
+              : 'bg-secondary/10 border-secondary/20 text-secondary'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">
+                {oauthMessage.type === 'error' ? 'error' : 'check_circle'}
+              </span>
+              <p className="text-sm">{oauthMessage.text}</p>
+              <button
+                onClick={() => setOauthMessage(null)}
+                className="ml-auto text-xs opacity-60 hover:opacity-100"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Connection Cards Grid — matches stitch exactly */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
