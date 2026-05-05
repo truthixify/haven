@@ -18,7 +18,7 @@ services:
       start_period: 10s
 
   tee-app:
-    image: truthixify/haven-tee:latest@sha256:4e1e851644e8809c7d8d1d6d6f6349e0846460270768592b8cb5d1657db6bb0a
+    image: truthixify/haven-tee:latest@sha256:d7b61f18a65f26147ba79d64fe853b343b39fd9f0d76b4c13514e83800652eb9
     container_name: haven-tee
     environment:
       # Database (connects to the db service above)
