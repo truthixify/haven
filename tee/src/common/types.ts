@@ -70,6 +70,7 @@ export interface RegistryCellData {
   perUpdateFee: bigint;
   protocolFeeAddress: string;
   tierThresholds: TierThresholds;
+  vkHash: Buffer;
 }
 
 export interface TierThresholds {

@@ -115,9 +115,13 @@ export const REGISTRY_CELL_OFFSETS = {
   TIER_TRUSTED:          { offset: 120, size: 2  },  // u16 LE
   TIER_GUARDIAN:         { offset: 122, size: 2  },  // u16 LE
   TIER_SOVEREIGN:        { offset: 124, size: 2  },  // u16 LE
+  VERSION:               { offset: 126, size: 1  },  // u8
+  GRACE_EPOCHS:          { offset: 127, size: 4  },  // u32 LE
+  LOW_BALANCE_THRESHOLD: { offset: 131, size: 8  },  // u64 LE
+  VK_HASH:               { offset: 139, size: 32 },  // 32-byte SP1 verification key hash
 } as const;
 
-export const REGISTRY_CELL_SIZE = 126;
+export const REGISTRY_CELL_SIZE = 171;
 
 // ---------------------------------------------------------------------------
 // Protocol defaults

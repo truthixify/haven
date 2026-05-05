@@ -194,6 +194,14 @@ export interface BuildRegistryCellOptions {
   feeAddress: string;
   /** Tier thresholds override. */
   tierThresholds?: Record<TierName, number>;
+  /** Registry version (default 1). */
+  version?: number;
+  /** Grace period epochs for program hash rotation. */
+  graceEpochs?: number;
+  /** Low balance warning threshold in shannons. */
+  lowBalanceThreshold?: bigint;
+  /** SP1 verification key hash (hex, 32 bytes). */
+  vkHash: string;
 }
 
 /**
@@ -243,6 +251,22 @@ export function serializeRegistryCell(options: BuildRegistryCellOptions): Uint8A
   writeU16LE(data, o.TIER_TRUSTED.offset, thresholds.Trusted);
   writeU16LE(data, o.TIER_GUARDIAN.offset, thresholds.Guardian);
   writeU16LE(data, o.TIER_SOVEREIGN.offset, thresholds.Sovereign);
+
+  // Version (u8)
+  data[o.VERSION.offset] = options.version ?? 1;
+
+  // Grace epochs (u32 LE)
+  writeU32LE(data, o.GRACE_EPOCHS.offset, options.graceEpochs ?? 2);
+
+  // Low balance threshold (u64 LE)
+  writeU64LE(data, o.LOW_BALANCE_THRESHOLD.offset, options.lowBalanceThreshold ?? BigInt(10_0000_0000));
+
+  // VK hash (32 bytes)
+  const vkHashBytes = hexToBytes(options.vkHash);
+  if (vkHashBytes.length !== 32) {
+    throw new Error(`vkHash must be 32 bytes, got ${vkHashBytes.length}`);
+  }
+  data.set(vkHashBytes, o.VK_HASH.offset);
 
   return data;
 }

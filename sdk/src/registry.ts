@@ -63,9 +63,10 @@ function readU64LE(data: Uint8Array, offset: number): bigint {
  * @throws If data length does not match expected size.
  */
 export function parseRegistryCell(data: Uint8Array): RegistryConfig {
-  if (data.length !== REGISTRY_CELL_SIZE) {
+  // Accept both old (126/139) and new (171) registry sizes
+  if (data.length < 126) {
     throw new Error(
-      `Invalid registry cell data length: expected ${REGISTRY_CELL_SIZE} bytes, got ${data.length}`,
+      `Invalid registry cell data length: expected >= 126 bytes, got ${data.length}`,
     );
   }
 

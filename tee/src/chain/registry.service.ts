@@ -179,69 +179,72 @@ export class RegistryService implements OnModuleInit {
   /**
    * Parse the registry cell data from hex.
    *
-   * Registry cell layout:
-   * [32 bytes: current program hash]
-   * [32 bytes: previous program hash]
-   * [4 bytes: epoch duration in blocks (u32 LE)]
-   * [8 bytes: minimum deposit (u64 LE)]
-   * [8 bytes: per-update fee (u64 LE)]
-   * [20 bytes: protocol fee address (blake160 hash)]
-   * [10 bytes: tier thresholds (5 x u16 LE)]
-   * Total: 114 bytes
+   * Registry cell layout (171 bytes):
+   * [0..32]    current program hash
+   * [32..64]   previous program hash
+   * [64..68]   epoch duration (u32 LE)
+   * [68..76]   minimum deposit (u64 LE)
+   * [76..84]   per-update fee (u64 LE)
+   * [84..116]  fee address (32 bytes)
+   * [116..126] tier thresholds (5 x u16 LE)
+   * [126]      version (u8)
+   * [127..131] grace epochs (u32 LE)
+   * [131..139] low balance threshold (u64 LE)
+   * [139..171] vk_hash (32 bytes)
    */
   private parseRegistryCellData(hexData: string): RegistryCellData {
     const data = Buffer.from(hexData.replace(/^0x/, ''), 'hex');
 
-    if (data.length < 114) {
+    if (data.length < 139) {
       this.logger.warn(
-        `Registry cell data too short: ${data.length} bytes (expected 114)`,
+        `Registry cell data too short: ${data.length} bytes (expected >= 139)`,
       );
       return this.getDefaultRegistry();
     }
 
-    let offset = 0;
-
-    const currentProgramHash = data.subarray(offset, offset + 32);
-    offset += 32;
-
-    const previousProgramHash = data.subarray(offset, offset + 32);
-    offset += 32;
-
-    const epochDurationBlocks = data.readUInt32LE(offset);
-    offset += 4;
-
-    const minimumDeposit = data.readBigUInt64LE(offset);
-    offset += 8;
-
-    const perUpdateFee = data.readBigUInt64LE(offset);
-    offset += 8;
-
-    const protocolFeeAddress =
-      '0x' + data.subarray(offset, offset + 20).toString('hex');
-    offset += 20;
+    const currentProgramHash = Buffer.from(data.subarray(0, 32));
+    const previousProgramHash = Buffer.from(data.subarray(32, 64));
+    const epochDurationBlocks = data.readUInt32LE(64);
+    const minimumDeposit = data.readBigUInt64LE(68);
+    const perUpdateFee = data.readBigUInt64LE(76);
+    const protocolFeeAddress = '0x' + data.subarray(84, 116).toString('hex');
 
     const tierThresholds: TierThresholds = {
-      observer: data.readUInt16LE(offset),
-      initiate: data.readUInt16LE(offset + 2),
-      trusted: data.readUInt16LE(offset + 4),
-      guardian: data.readUInt16LE(offset + 6),
-      sovereign: data.readUInt16LE(offset + 8),
+      observer: data.readUInt16LE(116),
+      initiate: data.readUInt16LE(118),
+      trusted: data.readUInt16LE(120),
+      guardian: data.readUInt16LE(122),
+      sovereign: data.readUInt16LE(124),
     };
 
+    // vk_hash at offset 139 (32 bytes) — may not exist in older registries
+    const vkHash = data.length >= 171
+      ? Buffer.from(data.subarray(139, 171))
+      : Buffer.alloc(32);
+
     return {
-      currentProgramHash: Buffer.from(currentProgramHash),
-      previousProgramHash: Buffer.from(previousProgramHash),
+      currentProgramHash,
+      previousProgramHash,
       epochDurationBlocks,
       minimumDeposit,
       perUpdateFee,
       protocolFeeAddress,
       tierThresholds,
+      vkHash,
     };
   }
 
   /**
    * Return default registry values for development/testing.
    */
+  /**
+   * Get the SP1 verification key hash from the registry.
+   */
+  async getVkHash(): Promise<Buffer> {
+    const registry = await this.getRegistryData();
+    return registry?.vkHash ?? Buffer.alloc(32);
+  }
+
   private getDefaultRegistry(): RegistryCellData {
     return {
       currentProgramHash: Buffer.alloc(32),
@@ -257,6 +260,7 @@ export class RegistryService implements OnModuleInit {
         guardian: TIER_THRESHOLDS.GUARDIAN,
         sovereign: TIER_THRESHOLDS.SOVEREIGN,
       },
+      vkHash: Buffer.alloc(32),
     };
   }
 }
