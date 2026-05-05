@@ -51,6 +51,10 @@ pub mod error {
     pub const BREAKDOWN_OUT_OF_RANGE: i8 = 23;
     /// Breakdown scores do not sum to total score.
     pub const BREAKDOWN_SUM_MISMATCH: i8 = 24;
+    /// Top-up: output cell capacity did not increase to cover deposit.
+    pub const TOPUP_CAPACITY_MISMATCH: i8 = 25;
+    /// VK hash from registry does not match.
+    pub const VK_HASH_MISMATCH: i8 = 26;
 
     // -- Lock script errors --------------------------------------------------
     /// Signature verification failed (blake160 mismatch).
@@ -84,8 +88,8 @@ pub const MAX_COMPONENT_SCORE: u16 = 1000;
 /// Current supported cell schema version.
 pub const CURRENT_VERSION: u8 = 1;
 
-/// Size of the registry cell data.
-pub const REGISTRY_CELL_SIZE: usize = 138;
+/// Size of the registry cell data (old, kept for compatibility).
+pub const REGISTRY_CELL_SIZE: usize = 171;
 
 /// Size of the lock script args: user_pubkey_hash (20) + tee_pubkey_hash (20).
 pub const LOCK_ARGS_SIZE: usize = 40;
@@ -228,7 +232,7 @@ impl ScoreCell {
 }
 
 // ---------------------------------------------------------------------------
-// Registry Cell (139 bytes)
+// Registry Cell (171 bytes)
 // ---------------------------------------------------------------------------
 
 /// Haven Registry Cell data layout.
@@ -248,10 +252,11 @@ impl ScoreCell {
 /// | tier_sovereign     | 124    | 2    | u16   |
 /// | version            | 126    | 1    | u8    |
 /// | grace_epochs       | 127    | 4    | u32   |
-/// | low_balance_warn   | 131    | 8    | u64   |  (threshold for low-balance warning, unused on-chain but stored)
+/// | low_balance_warn   | 131    | 8    | u64   |
+/// | vk_hash            | 139    | 32   | [u8]  |
 ///
-/// Total: 32+32+4+8+8+32+2+2+2+2+2+1+4+8 = 139 bytes.
-pub const REGISTRY_CELL_ACTUAL_SIZE: usize = 139;
+/// Total: 139 + 32 = 171 bytes.
+pub const REGISTRY_CELL_ACTUAL_SIZE: usize = 171;
 
 pub struct RegistryCell {
     pub program_hash: [u8; 32],
@@ -268,6 +273,7 @@ pub struct RegistryCell {
     pub version: u8,
     pub grace_epochs: u32,
     pub low_balance_threshold: u64,
+    pub vk_hash: [u8; 32],
 }
 
 impl RegistryCell {
@@ -313,6 +319,9 @@ impl RegistryCell {
             data[135], data[136], data[137], data[138],
         ]);
 
+        let mut vk_hash = [0u8; 32];
+        vk_hash.copy_from_slice(&data[139..171]);
+
         Ok(RegistryCell {
             program_hash,
             prev_program_hash,
@@ -328,6 +337,7 @@ impl RegistryCell {
             version,
             grace_epochs,
             low_balance_threshold,
+            vk_hash,
         })
     }
 
@@ -522,18 +532,13 @@ pub fn parse_path_flag(witness: &[u8]) -> Result<u8, i8> {
 }
 
 // ---------------------------------------------------------------------------
-// Utility: constant-time comparison for hashes
+// Utility
 // ---------------------------------------------------------------------------
 
-/// Compare two 32-byte slices in constant time to prevent timing attacks.
-pub fn ct_eq_32(a: &[u8; 32], b: &[u8; 32]) -> bool {
-    let mut diff: u8 = 0;
-    let mut i = 0;
-    while i < 32 {
-        diff |= a[i] ^ b[i];
-        i += 1;
-    }
-    diff == 0
+/// Compare two 32-byte arrays. No constant-time needed on-chain (no timing
+/// side-channels in CKB VM — execution is deterministic and publicly visible).
+pub fn eq_32(a: &[u8; 32], b: &[u8; 32]) -> bool {
+    *a == *b
 }
 
 // ---------------------------------------------------------------------------
@@ -672,6 +677,7 @@ mod tests {
             version: 1,
             grace_epochs: 2,
             low_balance_threshold: 10_0000_0000,
+            vk_hash: [0xDD; 32],
         };
 
         assert!(reg.is_valid_program_hash(&[0xAA; 32]));
@@ -680,12 +686,12 @@ mod tests {
     }
 
     #[test]
-    fn test_ct_eq_32() {
+    fn test_eq_32() {
         let a = [0x42u8; 32];
         let b = [0x42u8; 32];
         let c = [0x43u8; 32];
-        assert!(ct_eq_32(&a, &b));
-        assert!(!ct_eq_32(&a, &c));
+        assert!(eq_32(&a, &b));
+        assert!(!eq_32(&a, &c));
     }
 
     #[test]

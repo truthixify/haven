@@ -222,14 +222,7 @@ fn verify_secp256k1_blake160(
     // Blake2b-160 of compressed pubkey
     let hash = blake2b_160(compressed);
 
-    // Constant-time comparison
-    let mut diff: u8 = 0;
-    let mut i = 0;
-    while i < HASH160_SIZE {
-        diff |= hash[i] ^ expected[i];
-        i += 1;
-    }
-    if diff != 0 {
+    if hash != *expected {
         return Err(error::INVALID_SIGNATURE);
     }
 
@@ -258,12 +251,21 @@ fn blake2b_160(data: &[u8]) -> [u8; HASH160_SIZE] {
 // Cell / witness helpers
 // ---------------------------------------------------------------------------
 
-/// At least one output sharing our lock must also have a type script.
+/// Verify that an output cell with our lock has the SAME type script as
+/// the input cell. This prevents an attacker from swapping in a trivial
+/// type script (e.g. always-success) on the TEE update path.
 fn verify_type_script_on_output() -> Result<(), i8> {
     use ckb_std::high_level::{load_cell_lock_hash, load_cell_type_hash, load_script_hash};
 
     let our_lock_hash = load_script_hash().map_err(|_| error::TYPE_SCRIPT_MISSING)?;
 
+    // Get the input cell's type script hash (from GroupInput index 0).
+    let input_type_hash = match load_cell_type_hash(0, Source::GroupInput) {
+        Ok(Some(h)) => h,
+        _ => return Err(error::TYPE_SCRIPT_MISSING),
+    };
+
+    // Find an output with our lock and verify it has the same type script.
     for i in 0.. {
         let out_lock_hash = match load_cell_lock_hash(i, Source::Output) {
             Ok(h) => h,
@@ -271,7 +273,7 @@ fn verify_type_script_on_output() -> Result<(), i8> {
         };
         if out_lock_hash == our_lock_hash {
             match load_cell_type_hash(i, Source::Output) {
-                Ok(Some(_)) => return Ok(()),
+                Ok(Some(out_type_hash)) if out_type_hash == input_type_hash => return Ok(()),
                 _ => return Err(error::TYPE_SCRIPT_MISSING),
             }
         }

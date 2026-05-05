@@ -23,15 +23,14 @@ ckb_std::default_alloc!(16384, 1258306, 64);
 use alloc::vec::Vec;
 use ckb_std::{
     ckb_constants::Source,
-    // ckb_types::bytes::Bytes, // no longer needed for SP1 verification
     high_level::{
-        load_cell_data, load_cell_type_hash, load_script_hash,
-        load_witness_args, QueryIter,
+        load_cell_capacity, load_cell_data, load_cell_type_hash,
+        load_script_hash, load_witness_args, QueryIter,
     },
 };
 use haven_types::{
     error, PublicInputs, RegistryCell, ScoreCell,
-    CURRENT_VERSION, MAX_SCORE, PUBLIC_INPUTS_ACTUAL_SIZE, REGISTRY_CELL_ACTUAL_SIZE, 
+    CURRENT_VERSION, MAX_SCORE, PUBLIC_INPUTS_ACTUAL_SIZE, REGISTRY_CELL_ACTUAL_SIZE,
     TEE_WITNESS_HEADER_SIZE,
 };
 use sp1_verifier::PlonkVerifier;
@@ -54,17 +53,17 @@ fn process() -> Result<(), i8> {
         (0, 1) => handle_creation(),
         (1, 1) => {
             // Check if this is a TEE score update or a user top-up.
-            // TEE updates have a witness with path flag 0x00 and SP1 proof.
-            // User top-ups only change deposit_balance — no witness required.
-            let input_data = load_input_score_cell_data()?;
-            let output_data = load_output_score_cell_data()?;
+            let input_data = load_cell_data(0, Source::GroupInput)
+                .map_err(|_| error::INVALID_DATA_LENGTH)?;
+            let output_data = load_cell_data(0, Source::GroupOutput)
+                .map_err(|_| error::INVALID_DATA_LENGTH)?;
             let input_cell = ScoreCell::from_bytes(&input_data)?;
             let output_cell = ScoreCell::from_bytes(&output_data)?;
 
             // If only deposit_balance changed (increased) and everything else
-            // is identical, this is a user top-up — allow it without proof.
+            // is identical, this is a user top-up — verify capacity increased.
             if is_topup_only(&input_cell, &output_cell) {
-                Ok(())
+                verify_topup_capacity(&input_cell, &output_cell)
             } else {
                 handle_update()
             }
@@ -79,7 +78,8 @@ fn process() -> Result<(), i8> {
 // ---------------------------------------------------------------------------
 
 fn handle_creation() -> Result<(), i8> {
-    let output_data = load_output_score_cell_data()?;
+    let output_data = load_cell_data(0, Source::GroupOutput)
+        .map_err(|_| error::INVALID_DATA_LENGTH)?;
     let score_cell = ScoreCell::from_bytes(&output_data)?;
 
     // Initial score must be zero.
@@ -114,9 +114,11 @@ fn handle_creation() -> Result<(), i8> {
 // ---------------------------------------------------------------------------
 
 fn handle_update() -> Result<(), i8> {
-    // Load input and output score cells.
-    let input_data = load_input_score_cell_data()?;
-    let output_data = load_output_score_cell_data()?;
+    // Load input and output score cells via GroupInput/GroupOutput.
+    let input_data = load_cell_data(0, Source::GroupInput)
+        .map_err(|_| error::INVALID_DATA_LENGTH)?;
+    let output_data = load_cell_data(0, Source::GroupOutput)
+        .map_err(|_| error::INVALID_DATA_LENGTH)?;
 
     let input_cell = ScoreCell::from_bytes(&input_data)?;
     let output_cell = ScoreCell::from_bytes(&output_data)?;
@@ -124,7 +126,7 @@ fn handle_update() -> Result<(), i8> {
     // Load the registry cell from cell deps.
     let registry = load_registry_from_deps()?;
 
-    // Load witness data containing the SP1 proof.
+    // Load witness data from GroupInput (type script's group).
     let witness = load_witness_for_type_script()?;
 
     if witness.len() < TEE_WITNESS_HEADER_SIZE {
@@ -134,7 +136,7 @@ fn handle_update() -> Result<(), i8> {
     // Parse witness layout:
     // [0]                          = path flag (0x00 for TEE update)
     // [1..85]                      = public inputs (84 bytes)
-    // [85..117]                    = vk_hash (32 bytes)
+    // [85..117]                    = vk_hash (32 bytes, IGNORED — read from registry)
     // [117..121]                   = proof_len (u32 LE)
     // [121..121+proof_len]         = proof bytes
     // [121+proof_len..+4]          = journal_len (u32 LE)
@@ -151,8 +153,9 @@ fn handle_update() -> Result<(), i8> {
     let public_inputs_bytes = &witness[1..pi_end];
     let public_inputs = PublicInputs::from_bytes(public_inputs_bytes)?;
 
-    let mut vk_hash = [0u8; 32];
-    vk_hash.copy_from_slice(&witness[pi_end..vk_end]);
+    // vk_hash comes from the on-chain registry — NOT from the witness.
+    // This prevents an attacker from substituting a trivial always-success program.
+    let vk_hash = registry.vk_hash;
 
     let proof_len = u32::from_le_bytes([
         witness[vk_end], witness[vk_end + 1], witness[vk_end + 2], witness[vk_end + 3],
@@ -183,10 +186,10 @@ fn handle_update() -> Result<(), i8> {
     // -----------------------------------------------------------------------
 
     // 1. User identity must not change.
-    if !haven_types::ct_eq_32(&input_cell.user_identity, &output_cell.user_identity) {
+    if !haven_types::eq_32(&input_cell.user_identity, &output_cell.user_identity) {
         return Err(error::IDENTITY_CHANGED);
     }
-    if !haven_types::ct_eq_32(&public_inputs.user_identity, &input_cell.user_identity) {
+    if !haven_types::eq_32(&public_inputs.user_identity, &input_cell.user_identity) {
         return Err(error::PUBLIC_INPUTS_MISMATCH);
     }
 
@@ -235,7 +238,7 @@ fn handle_update() -> Result<(), i8> {
     }
 
     // 9. Output cell program_hash must match the proof's program_hash.
-    if !haven_types::ct_eq_32(&output_cell.program_hash, &public_inputs.program_hash) {
+    if !haven_types::eq_32(&output_cell.program_hash, &public_inputs.program_hash) {
         return Err(error::PROGRAM_HASH_MISMATCH);
     }
 
@@ -299,15 +302,39 @@ fn is_topup_only(input: &ScoreCell, output: &ScoreCell) -> bool {
     input.version == output.version
         && input.score == output.score
         && input.epoch == output.epoch
-        && haven_types::ct_eq_32(&input.user_identity, &output.user_identity)
-        && haven_types::ct_eq_32(&input.program_hash, &output.program_hash)
-        && haven_types::ct_eq_32(&input.proof_hash, &output.proof_hash)
+        && input.user_identity == output.user_identity
+        && input.program_hash == output.program_hash
+        && input.proof_hash == output.proof_hash
         && input.privacy_score == output.privacy_score
         && input.contribution_score == output.contribution_score
         && input.humanity_score == output.humanity_score
         && input.community_score == output.community_score
         && input.issued_at == output.issued_at
         && input.expires_at == output.expires_at
+}
+
+/// Verify that the output cell's capacity increased to cover the deposit
+/// balance increase. Prevents inflating deposit_balance without locking CKB.
+fn verify_topup_capacity(input: &ScoreCell, output: &ScoreCell) -> Result<(), i8> {
+    let input_capacity = load_cell_capacity(0, Source::GroupInput)
+        .map_err(|_| error::TOPUP_CAPACITY_MISMATCH)?;
+    let output_capacity = load_cell_capacity(0, Source::GroupOutput)
+        .map_err(|_| error::TOPUP_CAPACITY_MISMATCH)?;
+
+    // Output capacity must be >= input capacity (can't shrink the cell)
+    if output_capacity < input_capacity {
+        return Err(error::TOPUP_CAPACITY_MISMATCH);
+    }
+
+    // The capacity increase must cover the deposit_balance increase.
+    // deposit_balance is in shannons, capacity is in shannons.
+    let deposit_increase = output.deposit_balance - input.deposit_balance;
+    let capacity_increase = output_capacity - input_capacity;
+    if capacity_increase < deposit_increase {
+        return Err(error::TOPUP_CAPACITY_MISMATCH);
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -336,32 +363,7 @@ fn count_cells_by_type_hash(target_hash: &[u8; 32], source: Source) -> usize {
     count
 }
 
-// ---------------------------------------------------------------------------
-// Helper: find the index of our score cell in inputs/outputs
-// ---------------------------------------------------------------------------
-
-fn find_cell_index_by_type(source: Source) -> Result<usize, i8> {
-    let our_hash = load_script_hash().map_err(|_| error::INVALID_WITNESS)?;
-
-    for (i, type_hash_opt) in QueryIter::new(load_cell_type_hash, source).enumerate() {
-        if let Some(type_hash) = type_hash_opt {
-            if type_hash == our_hash {
-                return Ok(i);
-            }
-        }
-    }
-    Err(error::INVALID_DATA_LENGTH)
-}
-
-fn load_input_score_cell_data() -> Result<Vec<u8>, i8> {
-    let idx = find_cell_index_by_type(Source::Input)?;
-    load_cell_data(idx, Source::Input).map_err(|_| error::INVALID_DATA_LENGTH)
-}
-
-fn load_output_score_cell_data() -> Result<Vec<u8>, i8> {
-    let idx = find_cell_index_by_type(Source::Output)?;
-    load_cell_data(idx, Source::Output).map_err(|_| error::INVALID_DATA_LENGTH)
-}
+// find_cell_index_by_type removed — use Source::GroupInput/GroupOutput directly.
 
 // ---------------------------------------------------------------------------
 // Helper: load registry cell from cell deps
@@ -386,13 +388,11 @@ fn load_registry_from_deps() -> Result<RegistryCell, i8> {
 // Helper: load witness data for type script validation
 // ---------------------------------------------------------------------------
 
-/// Load the witness for the input cell matching our type script.
+/// Load the witness for the input cell in our type script group.
 /// The SP1 proof and public inputs are stored in the `input_type` field
 /// of the WitnessArgs.
 fn load_witness_for_type_script() -> Result<Vec<u8>, i8> {
-    let idx = find_cell_index_by_type(Source::Input)?;
-
-    match load_witness_args(idx, Source::Input) {
+    match load_witness_args(0, Source::GroupInput) {
         Ok(witness_args) => {
             // Primary: input_type field
             if let Some(input_type_data) = witness_args.input_type().to_opt() {
