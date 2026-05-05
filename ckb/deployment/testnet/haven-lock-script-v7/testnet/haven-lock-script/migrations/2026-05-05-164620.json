@@ -1,0 +1,13 @@
+{
+  "cell_recipes": [
+    {
+      "name": "haven-lock-script",
+      "tx_hash": "0x0f5b013a8266850af4ede958467987b07bc22b5874296eabdb1fcc8022ec1998",
+      "index": 0,
+      "occupied_capacity": 13206200000000,
+      "data_hash": "0xde65002bb7952eeb4f67f1773dc23ed7f8f0cfb8154c70fc45b22f6de1031905",
+      "type_id": "0x296b392e89ec260d8ddc81c3ade5f18bb1d9775f6f9a3885c0ea1fd81d11cf18"
+    }
+  ],
+  "dep_group_recipes": []
+}

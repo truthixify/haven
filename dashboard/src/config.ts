@@ -14,14 +14,14 @@ export const config = {
   // Cell dep for the Haven Type Script (the cell that contains the script binary)
   havenTypeScriptCellDepTxHash:
     import.meta.env.VITE_HAVEN_TYPE_SCRIPT_CELLDEP_TX_HASH ||
-    '0x8d36b87574a794f5fbcb959dd42050bccae71c79c7cbe65d2379d20d81089305',
+    '0x57b2ba0d60380373b8aaa11172110662bbef67a1041b5f71aca7872753ba7586',
   havenTypeScriptCellDepIndex:
     Number(import.meta.env.VITE_HAVEN_TYPE_SCRIPT_CELLDEP_INDEX || '0'),
 
   // Haven Registry Cell (contains protocol config: min deposit, fees, tier thresholds)
   havenRegistryCellDepTxHash:
     import.meta.env.VITE_HAVEN_REGISTRY_CELLDEP_TX_HASH ||
-    '0x31105ea4e11bc6172be31f2aa04dfbd8fea103a55c708bc7ce36389acceeb52c',
+    '0xb52181cb5dfa075501f3710d096dc0285fced72afc46a69694b1458c28117980',
   havenRegistryCellDepIndex:
     Number(import.meta.env.VITE_HAVEN_REGISTRY_CELLDEP_INDEX || '0'),
 
@@ -33,7 +33,7 @@ export const config = {
     (import.meta.env.VITE_HAVEN_LOCK_SCRIPT_HASH_TYPE as 'type' | 'data') || 'type',
   havenLockScriptCellDepTxHash:
     import.meta.env.VITE_HAVEN_LOCK_SCRIPT_CELLDEP_TX_HASH ||
-    '0xc588c6351e62db3912a31520ba90840632f89bee8f74eea9d7cb2cb0498e65be',
+    '0x0f5b013a8266850af4ede958467987b07bc22b5874296eabdb1fcc8022ec1998',
   havenLockScriptCellDepIndex:
     Number(import.meta.env.VITE_HAVEN_LOCK_SCRIPT_CELLDEP_INDEX || '0'),
 
